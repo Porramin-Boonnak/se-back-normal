@@ -6,6 +6,7 @@ from bson import json_util
 from google.oauth2 import id_token
 from google.auth.transport import requests
 from flask_bcrypt import Bcrypt
+from flask_cors import CORS
 import jwt
 import datetime
 uri = "mongodb+srv://se1212312121:se1212312121@cluster0.kjvosuu.mongodb.net/"
@@ -14,6 +15,7 @@ uri = "mongodb+srv://se1212312121:se1212312121@cluster0.kjvosuu.mongodb.net/"
 client = MongoClient(uri)
 
 app = Flask(__name__)
+CORS(app) 
 keyforlogin = "1212312121"
 bcrypt = Bcrypt(app)
 db = client["vivart"]
