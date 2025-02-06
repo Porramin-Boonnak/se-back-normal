@@ -113,6 +113,16 @@ def getallpost():
     else:
         return jsonify({"error": "Data not found"}), 404
     
-
+@app.route('/status', methods=['POST'])
+def getstatus():
+    data = request.get_json()
+    decoded = jwt.decode(data["token"], keyforlogin, algorithms=["HS256"])
+    find = customer.find_one({"username": decoded["username"]})
+    if find:
+        find['_id'] = str(find['_id'])  
+        return jsonify(find),200
+    else:
+        return jsonify({"error": "Data not found"}), 404
+    
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
