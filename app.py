@@ -124,6 +124,26 @@ def getallpost():
     else:
         return jsonify({"error": "Data not found"}), 404
     
+@app.route('/status', methods=['POST'])
+def getstatus():
+    data = request.get_json()
+    decoded = jwt.decode(data["token"], keyforlogin, algorithms=["HS256"])
+    find = customer.find_one({"username": decoded["username"]})
+    if find:
+        find['_id'] = str(find['_id'])  
+        return jsonify(find),200
+    else:
+        return jsonify({"error": "Data not found"}), 404
+    
+@app.route('/update/like/<string:_id>', methods=["PUT"])
+def updatelike(_id):
+    object_id = ObjectId(_id)  
+    user = request.get_json()
+    find = post.find_one({"_id": object_id}) 
+    if find:
+        post.update_one({"_id": object_id}, {"$addToSet": {"like": user}}, upsert=True)
+        return jsonify({"message": "successful"}), 200
+    return jsonify({"message": "fail"}), 400
 
 @app.route('/cart/<string:_id>', methods=['GET'])
 def getcart(_id):
@@ -158,5 +178,15 @@ def delete_cart(_id):
     else:
         return jsonify({"error": "Data not found"}), 404
 
+@app.route('/delete/like/<string:_id>', methods=['DELETE'])
+def deletelike(_id):
+    object_id = ObjectId(_id)  
+    user = request.get_json()
+    find = post.find_one({"_id": object_id})  
+    if find:
+        post.update_one({"_id": object_id}, {"$pull": {"like": user}}, upsert=True)
+        return jsonify({"message": "successful"}), 200
+    return jsonify({"message": "fail"}), 400
+    
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
