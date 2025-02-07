@@ -21,6 +21,7 @@ bcrypt = Bcrypt(app)
 db = client["vivart"]
 customer = db["customer"]
 post = db["post"]
+cart = db["cart"]
 
 clientId = "1007059418552-8qgb0riokmg3t0t993ecjodnglvm0bj2.apps.googleusercontent.com"
 
@@ -94,11 +95,21 @@ def postdata():
 
 @app.route('/post/<string:_id>', methods=['GET'])
 def getpost(_id):
-    object_id = ObjectId(_id)  # แปลง _id เป็น ObjectId
-    data = post.find_one({"_id": object_id})  # ค้นหาจาก MongoDB
-    if data:
-        data['_id'] = str(data['_id'])  # แปลง ObjectId เป็น string เพื่อให้ JSON ใช้ได้
-        return jsonify(data)
+    try:
+        object_id = ObjectId(_id)  # แปลง _id เป็น ObjectId
+    except:
+        return jsonify({"error": "Invalid ID format"}), 400
+    
+    # อัปเดต visit +1
+    result = post.find_one_and_update( 
+        {"_id": object_id}, 
+        {"$inc": {"visit": 1}}, 
+        return_document=True  # ให้คืนค่าหลังอัปเดต
+    ) 
+
+    if result:
+        result['_id'] = str(result['_id'])  # แปลง ObjectId เป็น string เพื่อ JSON ใช้งานได้
+        return jsonify(result)
     else:
         return jsonify({"error": "Data not found"}), 404
     
@@ -113,6 +124,39 @@ def getallpost():
     else:
         return jsonify({"error": "Data not found"}), 404
     
+
+@app.route('/cart/<string:_id>', methods=['GET'])
+def getcart(_id):
+    object_id = ObjectId(_id)
+    data = cart.find({"_id_customer": object_id})  # หาโดยใช้ _id_customer
+    results = []
+    for item in data:
+        item['_id'] = str(item['_id'])  
+        item['_id_customer'] = str(item['_id_customer'])  
+        results.append(item)
+    if results:
+        return jsonify(results)
+    else:
+        return jsonify({"error": "Data not found"}), 404
+
+@app.route("/cart", methods=["POST"])
+def add_to_cart():
+    data = request.get_json()
+    cart.insert_one(data)
+    return {"message": "upload successful"}, 200
+
+@app.route("/cart/<string:_id>", methods=["DELETE"])
+def delete_cart(_id):
+    try:
+        object_id = ObjectId(_id)  # แปลง _id ให้เป็น ObjectId
+    except:
+        return jsonify({"error": "Invalid ID format"}), 400
+
+    result = cart.delete_one({"_id": object_id})  # ลบข้อมูลที่มี _id ตรงกัน
+    if result.deleted_count > 0:
+        return jsonify({"message": "Delete successful"}), 200
+    else:
+        return jsonify({"error": "Data not found"}), 404
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
