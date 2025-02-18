@@ -182,40 +182,6 @@ def update_cart(_id_customer, _id_post):
         return jsonify({"message": "successful"}), 200
     else:
         return jsonify({"error": "Data not found"}), 404
-    
-# @app.route('/cart/<string:_id_customer>/<string:_id>/+', methods=['PUT'])
-# def update_cart(_id_customer, _id):
-#     object_id_customer = ObjectId(_id_customer)
-#     object_id = ObjectId(_id)
-#     data = cart.find_one_and_update(
-#         {"_id": object_id, "_id_customer": object_id_customer},
-#         {"$inc": {"quantity": 1}},
-#         return_document=True
-#     )
-
-#     if data:
-#         return jsonify({"message": "successful"}), 200
-#     else:
-#         return jsonify({"error": "Data not found"}), 404
-
-# @app.route('/cart/<string:_id_customer>/<string:_id>/-', methods=['PUT'])
-# def decrease_cart(_id_customer, _id):
-#     object_id_customer = ObjectId(_id_customer)
-#     object_id = ObjectId(_id)
-#     data = cart.find_one_and_update(
-#         {"_id": object_id, "_id_customer": object_id_customer},
-#         {"$inc": {"quantity": -1}},
-#         return_document=True
-#     )
-
-#     if data and data['quantity'] > 0:
-#         return jsonify({"message": "successful"}), 200
-#     elif data and data['quantity'] <= 0:
-#         cart.delete_one({"_id": object_id, "_id_customer": object_id_customer})
-#         return jsonify({"message": "item removed"}), 200
-#     else:
-#         return jsonify({"error": "Data not found"}), 404
-
 @app.route('/cart/<string:_id_customer>/<string:_id_post>', methods=['DELETE'])
 def delete_cart_item(_id_customer, _id_post):
     object_id_customer = ObjectId(_id_customer)
