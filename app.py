@@ -145,38 +145,109 @@ def updatelike(_id):
         return jsonify({"message": "successful"}), 200
     return jsonify({"message": "fail"}), 400
 
-@app.route('/cart/<string:_id>', methods=['GET'])
-def getcart(_id):
-    object_id = ObjectId(_id)
-    data = cart.find({"_id_customer": object_id})  # หาโดยใช้ _id_customer
+@app.route('/cart/<string:_id_customer>', methods=['GET'])
+def getcart(_id_customer):
+    object_id = ObjectId(_id_customer)
+    data = cart.find({"_id_customer": object_id})
     results = []
     for item in data:
-        item['_id'] = str(item['_id'])  
-        item['_id_customer'] = str(item['_id_customer'])  
+        item['_id'] = str(item['_id'])
+        item['_id_customer'] = str(item['_id_customer'])
+        if '_id_post' in item:
+            item['_id_post'] = str(item['_id_post'])
         results.append(item)
     if results:
         return jsonify(results)
     else:
         return jsonify({"error": "Data not found"}), 404
 
-@app.route("/cart", methods=["POST"])
-def add_to_cart():
+@app.route('/cart/<string:_id_customer>/<string:_id_post>', methods=['PUT'])
+def update_cart(_id_customer, _id_post):
+    object_id_customer = ObjectId(_id_customer)
+    object_id = ObjectId(_id_post)
     data = request.get_json()
-    cart.insert_one(data)
-    return {"message": "upload successful"}, 200
+    new_quantity = data.get("quantity", 1)
+    
+    if new_quantity <= 0:
+        cart.delete_one({"_id_post": object_id, "_id_customer": object_id_customer})
+        return jsonify({"message": "item removed"}), 200
 
-@app.route("/cart/<string:_id>", methods=["DELETE"])
-def delete_cart(_id):
-    try:
-        object_id = ObjectId(_id)  # แปลง _id ให้เป็น ObjectId
-    except:
-        return jsonify({"error": "Invalid ID format"}), 400
+    updated_item = cart.find_one_and_update(
+        {"_id_post": object_id, "_id_customer": object_id_customer},
+        {"$set": {"quantity": new_quantity}},
+        return_document=True
+    )
 
-    result = cart.delete_one({"_id": object_id})  # ลบข้อมูลที่มี _id ตรงกัน
+    if updated_item:
+        return jsonify({"message": "successful"}), 200
+    else:
+        return jsonify({"error": "Data not found"}), 404
+    
+# @app.route('/cart/<string:_id_customer>/<string:_id>/+', methods=['PUT'])
+# def update_cart(_id_customer, _id):
+#     object_id_customer = ObjectId(_id_customer)
+#     object_id = ObjectId(_id)
+#     data = cart.find_one_and_update(
+#         {"_id": object_id, "_id_customer": object_id_customer},
+#         {"$inc": {"quantity": 1}},
+#         return_document=True
+#     )
+
+#     if data:
+#         return jsonify({"message": "successful"}), 200
+#     else:
+#         return jsonify({"error": "Data not found"}), 404
+
+# @app.route('/cart/<string:_id_customer>/<string:_id>/-', methods=['PUT'])
+# def decrease_cart(_id_customer, _id):
+#     object_id_customer = ObjectId(_id_customer)
+#     object_id = ObjectId(_id)
+#     data = cart.find_one_and_update(
+#         {"_id": object_id, "_id_customer": object_id_customer},
+#         {"$inc": {"quantity": -1}},
+#         return_document=True
+#     )
+
+#     if data and data['quantity'] > 0:
+#         return jsonify({"message": "successful"}), 200
+#     elif data and data['quantity'] <= 0:
+#         cart.delete_one({"_id": object_id, "_id_customer": object_id_customer})
+#         return jsonify({"message": "item removed"}), 200
+#     else:
+#         return jsonify({"error": "Data not found"}), 404
+
+@app.route('/cart/<string:_id_customer>/<string:_id_post>', methods=['DELETE'])
+def delete_cart_item(_id_customer, _id_post):
+    object_id_customer = ObjectId(_id_customer)
+    object_id = ObjectId(_id_post)
+    result = cart.delete_one({"_id_post": object_id, "_id_customer": object_id_customer})
+
     if result.deleted_count > 0:
         return jsonify({"message": "Delete successful"}), 200
     else:
         return jsonify({"error": "Data not found"}), 404
+
+@app.route('/cart', methods=['POST'])
+def add_to_cart():
+    data = request.get_json()
+    try:
+        data['_id_post'] = ObjectId(data['_id_post'])
+        data['_id_customer'] = ObjectId(data['_id_customer'])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+    existing_item = cart.find_one({"_id_post": data['_id_post'], "_id_customer": data['_id_customer']})
+    if existing_item:
+        new_quantity = existing_item['quantity'] + data['quantity']
+        cart.update_one(
+            {"_id_post": data['_id_post'], "_id_customer": data['_id_customer']},
+            {"$set": {"quantity": new_quantity}}
+        )
+        return jsonify({"message": "Quantity updated"}), 200
+    else:
+        cart.insert_one(data)
+        return jsonify({"message": "Item added to cart"}), 200
+
 
 @app.route('/delete/like/<string:_id>', methods=['DELETE'])
 def deletelike(_id):
