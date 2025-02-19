@@ -1,6 +1,5 @@
-
 from flask import request, Flask,jsonify
-from pymongo.mongo_client import MongoClient
+from pymongo import MongoClient, ReturnDocument
 from bson.objectid import ObjectId
 from bson import json_util
 from google.oauth2 import id_token
@@ -22,6 +21,7 @@ db = client["vivart"]
 customer = db["customer"]
 post = db["post"]
 cart = db["cart"]
+follow = db["follow"]
 
 clientId = "1007059418552-8qgb0riokmg3t0t993ecjodnglvm0bj2.apps.googleusercontent.com"
 
@@ -52,6 +52,11 @@ def signup():
         if "password" in data :
             data["password"]=bcrypt.generate_password_hash(data["password"]).decode('utf-8')
         customer.insert_one(data)
+        follow.insert_one({
+            "username":data["username"],
+            "followers": [],
+            "following": []
+        })
         payload = {
         "username": data['username'],
         "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=6)  
@@ -182,6 +187,7 @@ def update_cart(_id_customer, _id_post):
         return jsonify({"message": "successful"}), 200
     else:
         return jsonify({"error": "Data not found"}), 404
+
 @app.route('/cart/<string:_id_customer>/<string:_id_post>', methods=['DELETE'])
 def delete_cart_item(_id_customer, _id_post):
     object_id_customer = ObjectId(_id_customer)
@@ -224,6 +230,74 @@ def deletelike(_id):
         post.update_one({"_id": object_id}, {"$pull": {"like": user}}, upsert=True)
         return jsonify({"message": "successful"}), 200
     return jsonify({"message": "fail"}), 400
+
+@app.route("/editprofile", methods=["PUT"])
+def profile_update():
+    data = request.json
+    username = data.get("username")
+
+    if not username:
+        return jsonify({"error": "Username is required"}), 400
+
+    update_fields = {}
+    if "user_bio" in data:
+        update_fields["user_bio"] = data["user_bio"]
+    if "profile_pic" in data:
+        update_fields["img"] = data["profile_pic"]  # Ensure profile_pic is valid
+
+    if not update_fields:
+        return jsonify({"error": "No fields to update"}), 400
+
+    updated_user = customer.find_one_and_update(
+        {"username": username},
+        {"$set": update_fields},
+        return_document=ReturnDocument.AFTER
+    )
+
+    if updated_user:
+        # Convert ObjectId to string for JSON serialization
+        updated_user["_id"] = str(updated_user["_id"])
+        return jsonify(updated_user), 200
+    else:
+        return jsonify({"error": "User not found"}), 404
+
+
+@app.route("/profile/info/<username>", methods=["GET"])
+def get_profile_info(username):
+    data = customer.find_one({"username": username})
+    
+    if data:
+        data["_id"] = str(data["_id"])  # Convert ObjectId to string
+        data.pop("password", None)  # Remove password if it exists
+        data.pop("id_number",None)
+        data.pop("contact",None)
+        data.pop("email",None)
+        return jsonify(data), 200
+    else:
+        return jsonify({"error": "Profile not found"}), 404
+
+
+#GET POST BY username
+@app.route("/profile/posts/<username>", methods=["GET"])
+def get_profile_post(username):
+    data = list(post.find({"$or": [{"username": username}, {"artist": username}]}))
+
+    if data:
+        for doc in data:
+            doc["_id"] = str(doc["_id"])  # Convert ObjectId to string
+
+        return jsonify(data), 200
+    else:
+        return jsonify({"error": "Post not found"}), 404
+
+@app.route("/profile/follow/<username>" , methods=["GET"])
+def get_profile_follow(username):
+    data = follow.find_one({"username": username})
+    if data:
+        data["_id"] = str(data["_id"])  # Convert ObjectId to string
+        return jsonify(data), 200
+    else:
+        return jsonify({"error": "Profile not found"}), 404
     
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
