@@ -22,6 +22,7 @@ customer = db["customer"]
 post = db["post"]
 cart = db["cart"]
 follow = db["follow"]
+report = db["report"]
 
 clientId = "1007059418552-8qgb0riokmg3t0t993ecjodnglvm0bj2.apps.googleusercontent.com"
 
@@ -361,6 +362,44 @@ def unfollow_user():
 
     return jsonify({"message": f"{user_login} has unfollowed {this_user}"}), 200
 
+#report management
+# Helper to convert ObjectId to string
+def serialize_report(report):
+    return {
+        '_id': str(report['_id']),
+        'name': report.get('name', 'Unnamed Report'),
+        'description': report.get('description', ''),
+        'date': report.get('date', '')
+    }
+
+# 📥 GET all reports
+@app.route('/api/reports', methods=['GET'])
+def get_reports():
+    reports = list(report.find()) 
+    if reports:
+        for doc in reports:
+            doc["_id"] = str(doc["_id"])  # Convert ObjectId to string
+    return jsonify([serialize_report(report) for report in reports]), 200
+
+# 📥 GET a single report by ID
+@app.route('/api/reports/<report_id>', methods=['GET'])
+def get_report(report_id):
+    report = report.find_one({'_id': ObjectId(report_id)}) 
+    if report:
+        return jsonify(serialize_report(report)), 200
+    return jsonify({'message': 'Report not found'}), 404
+
+# 📤 POST a new report (for testing purposes)
+@app.route('/api/reports', methods=['POST'])
+def create_report():
+    data = request.json
+    new_report = {
+        'name': data.get('name'),
+        'description': data.get('description', ''),
+        'date': data.get('date', '')
+    }
+    result = report.insert_one(new_report) 
+    return jsonify({'message': 'Report created', 'id': str(result.inserted_id)}), 201
 
     
 if __name__ == "__main__":
