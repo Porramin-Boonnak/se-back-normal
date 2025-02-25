@@ -286,9 +286,9 @@ def get_profile_post(username):
         for doc in data:
             doc["_id"] = str(doc["_id"])  # Convert ObjectId to string
 
-        return jsonify(data), 200
-    else:
-        return jsonify({"error": "Post not found"}), 404
+    
+    return jsonify(data), 200
+
 
 @app.route("/profile/follow/<username>" , methods=["GET"])
 def get_profile_follow(username):
@@ -298,6 +298,70 @@ def get_profile_follow(username):
         return jsonify(data), 200
     else:
         return jsonify({"error": "Profile not found"}), 404
+
+@app.route("/follow", methods=["POST"])
+def follow_user():
+    follow_info = request.get_json()
+    user_login = follow_info.get("user_login")  # The user who wants to follow
+    this_user = follow_info.get("this_user")  # The user being followed
+    img = follow_info.get("img")  # Optional: image URL
+
+    if not user_login or not this_user:
+        return jsonify({"message": "Invalid input"}), 400
+
+    # Check if both users exist in the 'follow' collection
+    follower = follow.find_one({"username": user_login})
+    following = follow.find_one({"username": this_user})
+
+    if not (follower and following):
+        return jsonify({"message": "User not found"}), 404
+
+    # Add 'this_user' to 'user_login's following list
+    follow.update_one(
+        {"username": user_login},
+        {"$addToSet": {"followings": {"username": this_user, "img": img}}}
+    )
+
+    # Add 'user_login' to 'this_user's followers list
+    follow.update_one(
+        {"username": this_user},
+        {"$addToSet": {"followers": {"username": user_login, "img": img}}}
+    )
+
+    return jsonify({"message": f"{user_login} is now following {this_user}"}), 200
+
+
+@app.route("/unfollow", methods=["PUT"])
+def unfollow_user():
+    follow_info = request.get_json()
+    user_login = follow_info.get("user_login")  # The user who wants to unfollow
+    this_user = follow_info.get("this_user")  # The user being unfollowed
+
+    if not user_login or not this_user:
+        return jsonify({"message": "Invalid input"}), 400
+
+    # Check if both users exist in the 'follow' collection
+    follower = follow.find_one({"username": user_login})
+    following = follow.find_one({"username": this_user})
+
+    if not (follower and following):
+        return jsonify({"message": "User not found"}), 404
+
+    # Remove 'this_user' from 'user_login's following list
+    follow.update_one(
+        {"username": user_login},
+        {"$pull": {"followings": {"username": this_user}}}
+    )
+
+    # Remove 'user_login' from 'this_user's followers list
+    follow.update_one(
+        {"username": this_user},
+        {"$pull": {"followers": {"username": user_login}}}
+    )
+
+    return jsonify({"message": f"{user_login} has unfollowed {this_user}"}), 200
+
+
     
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
