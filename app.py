@@ -361,6 +361,49 @@ def unfollow_user():
 
     return jsonify({"message": f"{user_login} has unfollowed {this_user}"}), 200
 
+# Fill tracking number   
+@app.route("/edit/<id>", methods=["PUT"])
+def edit_tracking(id):
+    data = request.json
+    if "tracking_number" not in data:
+        return jsonify({"error": "Missing tracking number"}), 400
+    
+    filltracking.update_one({"_id": ObjectId(id)}, {"$set": {"tracking_number": data["tracking_number"]}})
+    return jsonify({"message": "Tracking number updated"})
+
+@app.route("/get_tracking", methods=["POST"])
+def get_tracking():
+    data = request.json
+    if "username" not in data:
+        return jsonify({"error": "Missing username"}), 400
+    
+    tracking_data = list(filltracking.find({"username": data["username"]}, {"_id": 1, "tracking_number": 1}))
+    for item in tracking_data:
+        item["id"] = str(item.pop("_id"))
+    
+    return jsonify(tracking_data)
+
+@app.route("/submit", methods=["POST"])
+def submit_tracking():
+    data = request.json
+    print("🔍 Received Data:", data)  # ตรวจสอบค่าที่รับมา
+
+    if "username" not in data or "tracking_number" not in data:
+        print("🚨 Missing required fields:", data)
+        return jsonify({"error": "Missing required fields"}), 400
+
+    tracking_entry = {
+        "username": data["username"],
+        "tracking_number": data["tracking_number"]
+    }
+    
+    try:
+        inserted_id = filltracking.insert_one(tracking_entry).inserted_id
+        print("✅ Inserted ID:", inserted_id)
+        return jsonify({"message": "Tracking number submitted", "id": str(inserted_id)})
+    except Exception as e:
+        print("🚨 Database Error:", str(e))
+        return jsonify({"error": "Database error"}), 500
 
     
 if __name__ == "__main__":
