@@ -445,6 +445,34 @@ def create_report():
     result = report.insert_one(new_report) 
     return jsonify({'message': 'Report created', 'id': str(result.inserted_id)}), 201
 
+@app.route('/post/<string:_id>', methods=['PUT'])
+def update_post(_id):
+    try:
+        object_id = ObjectId(_id)  # Convert the _id to ObjectId
+    except:
+        return jsonify({"error": "Invalid ID format"}), 400
+    
+    data = request.get_json()
+
+    # Optional: Add validation for required fields
+    if not data.get('name') or not data.get('description'):
+        return jsonify({"error": "Missing required fields (name, description)"}), 400
+
+    # Update the post
+    result = post.find_one_and_update(
+        {"_id": object_id},
+        {"$set": data},
+        return_document=True  # Return the document after the update
+    )
+
+    if result:
+        result['_id'] = str(result['_id'])  # Convert ObjectId to string for JSON response
+        return jsonify(result)
+    else:
+        return jsonify({"error": "Data not found"}), 404
+    
     
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
+
