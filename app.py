@@ -24,7 +24,7 @@ cart = db["cart"]
 follow = db["follow"]
 report = db["report"]
 filltracking = db["filltracking"]
-
+address = db["address"]
 clientId = "1007059418552-8qgb0riokmg3t0t993ecjodnglvm0bj2.apps.googleusercontent.com"
 
 @app.route("/", methods=["GET"])
@@ -445,6 +445,74 @@ def create_report():
     result = report.insert_one(new_report) 
     return jsonify({'message': 'Report created', 'id': str(result.inserted_id)}), 201
 
+@app.route('/address', methods=['POST'])
+def add_address():
+    data = request.get_json()
+    address.insert_one(data)
+    return {"message": "upload successful"}, 200
+
+@app.route('/get_address', methods=['POST'])
+def get_address():
+    data = request.get_json()
+    token = jwt.decode(data["token"], keyforlogin, algorithms="HS256")
+    find = list(address.find({"username": token["username"]}))
+    for item in find:
+        item['_id'] = str(item['_id']) 
+    return jsonify(find), 200
+
+@app.route('/delete_address', methods=['DELETE'])
+def delete_address():
+    data = request.get_json()
+    token = jwt.decode(data["token"], keyforlogin, algorithms="HS256")
+    object_id = ObjectId(data["_id"])   
+    address.delete_one({"username": token["username"], "_id": object_id})
+
+    return {"message": "delete successful"}, 200
+
+@app.route('/edit_address', methods=['PUT'])
+def edit_address():
+    data = request.get_json()
+    token = jwt.decode(data["token"], keyforlogin, algorithms="HS256")
+    object_id = ObjectId(data["_id"])   
+    address.update_one({"username": token["username"], "_id": object_id},{"$set" : data["data"]})
+
+    return {"message": "update successful"}, 200
+
+@app.route('/amount', methods=['POST'])
+def amount():
+    data = request.get_json()
     
+    if data["typepost"] == "uniq" :
+        object_id = ObjectId(data["_id"])   
+        find = post.find_one({"_id": object_id})
+        if find["status"] == "open" :
+            post.update_one({"_id": object_id},{"$set":{"status": "close","payment":data["payment"]}})
+            return {"message": "successful"}, 200
+    elif data["typepost"] == "ordinary" :
+        object_id = ObjectId(data["_id"])   
+        find = post.find_one({"_id": object_id})
+        if int(find["amount"]) >= data["quantity"] :
+            post.update_one({"_id": object_id},{"$set":{"amount": int(find["amount"])-int(data["quantity"]),"payment":data["payment"]}})
+            return {"message": "successful"}, 200
+    return {"message": "fail successful"}, 400
+
+@app.route('/amount', methods=['PUT'])
+def put_amount():
+    data = request.get_json()
+    
+    if data["typepost"] == "uniq" :
+        object_id = ObjectId(data["_id"])   
+        find = post.find_one({"_id": object_id})
+        if find["status"] == "close" and find["payment"] == "waiting" :
+            post.update_one({"_id": object_id},{ "$set": {"status": "open"},"$unset": {"payment": ""}})
+            return {"message": "successful"}, 200
+    elif data["typepost"] == "ordinary" :
+        object_id = ObjectId(data["_id"])   
+        find = post.find_one({"_id": object_id})
+        if int(find["amount"]) >= data["quantity"] and find["payment"]:
+            post.update_one({"_id": object_id},{"$set":{"amount": int(find["amount"])+int(data["quantity"])},"$unset": {"payment": ""}})
+            return {"message": "successful"}, 200
+    return {"message": "fail successful"}, 400
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
