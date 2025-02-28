@@ -282,12 +282,10 @@ def get_profile_info(username):
 def get_profile_post(username):
     data = list(post.find({"$or": [{"username": username}, {"artist": username}]}))
 
-    if data:
-        for doc in data:
-            doc["_id"] = str(doc["_id"])  # Convert ObjectId to string
+    for doc in data:
+        doc["_id"] = str(doc["_id"])  # Convert ObjectId to string
 
-    
-    return jsonify(data), 200
+    return jsonify(data), 200  # Will return [] if no data exists
 
 
 @app.route("/profile/follow/<username>" , methods=["GET"])
