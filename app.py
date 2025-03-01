@@ -8,6 +8,7 @@ from flask_bcrypt import Bcrypt
 from flask_cors import CORS
 import jwt
 import datetime
+import requests
 uri = "mongodb+srv://se1212312121:se1212312121@cluster0.kjvosuu.mongodb.net/"
 
 # Create a new client and connect to the server
@@ -24,7 +25,8 @@ cart = db["cart"]
 follow = db["follow"]
 report = db["report"]
 filltracking = db["filltracking"]
-
+address = db["address"]
+historymongo = db["history"]
 clientId = "1007059418552-8qgb0riokmg3t0t993ecjodnglvm0bj2.apps.googleusercontent.com"
 
 @app.route("/", methods=["GET"])
@@ -469,7 +471,113 @@ def update_post(_id):
     else:
         return jsonify({"error": "Data not found"}), 404
     
+@app.route('/address', methods=['POST'])
+def add_address():
+    data = request.get_json()
+    address.insert_one(data)
+    return {"message": "upload successful"}, 200
+
+@app.route('/get_address', methods=['POST'])
+def get_address():
+    data = request.get_json()
+    token = jwt.decode(data["token"], keyforlogin, algorithms="HS256")
+    find = list(address.find({"username": token["username"]}))
+    for item in find:
+        item['_id'] = str(item['_id']) 
+    return jsonify(find), 200
+
+@app.route('/delete_address', methods=['DELETE'])
+def delete_address():
+    data = request.get_json()
+    token = jwt.decode(data["token"], keyforlogin, algorithms="HS256")
+    object_id = ObjectId(data["_id"])   
+    address.delete_one({"username": token["username"], "_id": object_id})
+
+    return {"message": "delete successful"}, 200
+
+@app.route('/edit_address', methods=['PUT'])
+def edit_address():
+    data = request.get_json()
+    token = jwt.decode(data["token"], keyforlogin, algorithms="HS256")
+    object_id = ObjectId(data["_id"])   
+    address.update_one({"username": token["username"], "_id": object_id},{"$set" : data["data"]})
+
+    return {"message": "update successful"}, 200
+
+@app.route('/amount', methods=['POST'])
+def amount():
+    data = request.get_json()
     
+    if data["typepost"] == "uniq" :
+        object_id = ObjectId(data["_id"])   
+        find = post.find_one({"_id": object_id})
+        if find["status"] == "open" :
+            post.update_one({"_id": object_id},{"$set":{"status": "close","payment":data["payment"]}})
+            return {"message": "successful"}, 200
+    elif data["typepost"] == "ordinary" :
+        object_id = ObjectId(data["_id"])   
+        find = post.find_one({"_id": object_id})
+        if int(find["amount"]) >= data["quantity"] :
+            post.update_one({"_id": object_id},{"$set":{"amount": int(find["amount"])-int(data["quantity"]),"payment":data["payment"]}})
+            return {"message": "successful"}, 200
+    return {"message": "fail successful"}, 400
+
+@app.route('/amount', methods=['PUT'])
+def put_amount():
+    data = request.get_json()
+    
+    if data["typepost"] == "uniq" :
+        object_id = ObjectId(data["_id"])   
+        find = post.find_one({"_id": object_id})
+        if find["status"] == "close" and find["payment"] == "waiting" :
+            post.update_one({"_id": object_id},{ "$set": {"status": "open"},"$unset": {"payment": ""}})
+            return {"message": "successful"}, 200
+    elif data["typepost"] == "ordinary" :
+        object_id = ObjectId(data["_id"])   
+        find = post.find_one({"_id": object_id})
+        if int(find["amount"]) >= data["quantity"] and find["payment"]:
+            post.update_one({"_id": object_id},{"$set":{"amount": int(find["amount"])+int(data["quantity"])},"$unset": {"payment": ""}})
+            return {"message": "successful"}, 200
+    return {"message": "fail"}, 400
+
+@app.route('/history', methods=['post'])
+def history():
+    data = request.get_json()
+    historymongo.insert_many(data)
+    return {"message": "successful"}, 200
+
+@app.route('/proxy', methods=['POST'])
+def proxy():
+    # รับ URL ที่ส่งมาจาก frontend
+    data = request.get_json()
+    url = data["url"]
+    
+    try:
+        # ส่งคำขอไปยัง URL ที่ได้รับจาก frontend
+        response = requests.get(url)
+        
+        # ส่งผลลัพธ์จาก API ภายนอกกลับไปยัง frontend
+        return jsonify(response.json()), response.status_code
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": str(e)}), 500
+    
+@app.route('/success', methods=['POST'])
+def success():
+    data = request.get_json()
+    
+    if data["typepost"] == "uniq" :
+        object_id = ObjectId(data["_id"])   
+        find = post.find_one({"_id": object_id})
+        if find["status"] == "close" :
+            post.update_one({"_id": object_id},{"$set":{"payment":data["payment"],"own":data["username"]}})
+            return {"message": "successful"}, 200
+    elif data["typepost"] == "ordinary" :
+        object_id = ObjectId(data["_id"])   
+        find = post.find_one({"_id": object_id})
+        post.update_one({"_id": object_id},{"$set":{"payment":data["payment"]}})
+        return {"message": "successful"}, 200
+    return {"message": "fail"}, 400
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
 
