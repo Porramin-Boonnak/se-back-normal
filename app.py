@@ -9,6 +9,9 @@ from flask_cors import CORS
 import jwt
 import datetime
 import requests
+import base64
+import io
+from azure.storage.blob import BlobServiceClient
 uri = "mongodb+srv://se1212312121:se1212312121@cluster0.kjvosuu.mongodb.net/"
 
 # Create a new client and connect to the server
