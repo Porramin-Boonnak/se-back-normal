@@ -32,6 +32,7 @@ address = db["address"]
 historymongo = db["history"]
 clientId = "1007059418552-8qgb0riokmg3t0t993ecjodnglvm0bj2.apps.googleusercontent.com"
 
+AZURE_STORAGE_CONNECTION_STRING = ""
 CONTAINER_NAME = "images"
 blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
 
