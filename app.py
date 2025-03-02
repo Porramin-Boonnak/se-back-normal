@@ -55,6 +55,29 @@ def signup():
     if not find :
         if "password" in data :
             data["password"]=bcrypt.generate_password_hash(data["password"]).decode('utf-8')
+        base64_strings = data.get("img", [])  # รับ Base64 เป็น list
+        blob_urls = []  # เก็บ URL ของไฟล์ที่อัปโหลด
+
+        if not base64_strings:
+            return jsonify({"error": "No image data provided"}), 400
+
+        for i, base64_string in enumerate(base64_strings):
+            try:
+                if "," in base64_string:
+                    base64_string = base64_string.split(",")[1]  # ลบ prefix "data:image/png;base64,"
+
+                image_data = base64.b64decode(base64_string)  # แปลง Base64 เป็นไบนารี
+                blob_name = f"{data.get('name')}_{i}.png"  # ตั้งชื่อไฟล์ให้แต่ละรูป
+
+        # อัปโหลดไปยัง Azure Blob Storage
+                blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=blob_name)
+                blob_client.upload_blob(io.BytesIO(image_data), overwrite=True)
+
+                blob_urls.append(blob_client.url)  # เก็บ URL ของไฟล์ที่อัปโหลด
+            except Exception as e:
+                return jsonify({"error": f"Failed to upload image {i}: {str(e)}"}), 500
+
+        data["img"] = blob_urls  # แทนที่ Base64 ด้วย URL
         customer.insert_one(data)
         follow.insert_one({
             "username":data["username"],
@@ -98,6 +121,29 @@ def login():
 @app.route("/post", methods=["POST"])
 def postdata():
     data = request.get_json()
+    base64_strings = data.get("img", [])  # รับ Base64 เป็น list
+    blob_urls = []  # เก็บ URL ของไฟล์ที่อัปโหลด
+
+    if not base64_strings:
+        return jsonify({"error": "No image data provided"}), 400
+
+    for i, base64_string in enumerate(base64_strings):
+        try:
+            if "," in base64_string:
+                base64_string = base64_string.split(",")[1]  # ลบ prefix "data:image/png;base64,"
+
+            image_data = base64.b64decode(base64_string)  # แปลง Base64 เป็นไบนารี
+            blob_name = f"{data.get('name')}_{i}.png"  # ตั้งชื่อไฟล์ให้แต่ละรูป
+
+        # อัปโหลดไปยัง Azure Blob Storage
+            blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=blob_name)
+            blob_client.upload_blob(io.BytesIO(image_data), overwrite=True)
+
+            blob_urls.append(blob_client.url)  # เก็บ URL ของไฟล์ที่อัปโหลด
+        except Exception as e:
+            return jsonify({"error": f"Failed to upload image {i}: {str(e)}"}), 500
+
+    data["img"] = blob_urls  # แทนที่ Base64 ด้วย URL
     post.insert_one(data)
     return {"message": "upload successful"}, 200
 
