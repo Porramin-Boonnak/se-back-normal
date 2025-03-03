@@ -22,7 +22,7 @@ customer = db["customer"]
 post = db["post"]
 cart = db["cart"]
 follow = db["follow"]
-
+comment = db["comment"]
 clientId = "1007059418552-8qgb0riokmg3t0t993ecjodnglvm0bj2.apps.googleusercontent.com"
 
 @app.route("/", methods=["GET"])
@@ -235,7 +235,7 @@ def deletelike(_id):
 def profile_update():
     data = request.json
     username = data.get("username")
-
+   
     if not username:
         return jsonify({"error": "Username is required"}), 400
 
@@ -360,6 +360,38 @@ def unfollow_user():
     )
 
     return jsonify({"message": f"{user_login} has unfollowed {this_user}"}), 200
+
+
+    
+@app.route("/comment/<string:post_id>", methods=["POST"])
+def post_comment(post_id):
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No JSON data received"})
+        new_comment = {
+            "post_id": post_id,
+            "name": data.get("name"),
+            "comment": data.get("comment")
+        }
+        result = comment.insert_one(new_comment)
+        return jsonify({"message": "Comment added", "comment_id": str(result.inserted_id)}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+@app.route("/comment/<string:post_id>", methods=["GET"])
+def get_comment(post_id):
+    try:
+        
+        find = list(comment.find({"post_id": post_id}))
+        if find :
+            for item in find:
+                item['_id'] = str(item['_id'])
+
+            return jsonify(find),200
+        return jsonify({"message": "Comment fail"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
     
