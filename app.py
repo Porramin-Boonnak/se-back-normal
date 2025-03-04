@@ -7,7 +7,7 @@ from google.auth.transport import requests
 from flask_bcrypt import Bcrypt
 from flask_cors import CORS
 import jwt
-import datetime
+from datetime import datetime, timedelta, timezone
 import requests
 import base64
 import io
@@ -84,17 +84,24 @@ def signup_google():
 def signup():
     data = request.get_json()
     find = customer.find_one({"username": data["username"]})
-    if not find :
-        if "password" in data :
-            data["password"]=bcrypt.generate_password_hash(data["password"]).decode('utf-8')
+    if not find:
+        if "password" in data:
+            data["password"] = bcrypt.generate_password_hash(data["password"]).decode('utf-8')
+        
+        base64_strings = data.get("img", [])
+        blob_urls, error = upload_images_to_azure(base64_strings, data.get('username'))
+        if error:
+            return jsonify({"error": error}), 400
+        
+        data["img"] = blob_urls  # แทนที่ Base64 ด้วย URL
         customer.insert_one(data)
+        
         payload = {
-        "username": data['username'],
-        "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=6)  
+            "username": data['username'],
+            "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=6)  
         }
         token = jwt.encode(payload, keyforlogin, algorithm="HS256")
         return jsonify(token), 200
-    return {"message" : "fail"}, 400
 
 @app.route("/login", methods=["POST"])
 def login():
@@ -121,6 +128,7 @@ def login():
                 token = jwt.encode(payload, keyforlogin, algorithm="HS256")
                 return jsonify(token), 201
     return {"message": "login fail"}, 401
+
 @app.route("/post", methods=["POST"])
 def postdata():
     data = request.get_json()
@@ -350,22 +358,24 @@ def follow_user():
     follow_info = request.get_json()
     user_login = follow_info.get("user_login")  # The user who wants to follow
     this_user = follow_info.get("this_user")  # The user being followed
-    img = follow_info.get("img")  # Optional: image URL
+    img = follow_info.get("img")  # Optional image URL
 
     if not user_login or not this_user:
         return jsonify({"message": "Invalid input"}), 400
 
-    # Check if both users exist in the 'follow' collection
-    follower = follow.find_one({"username": user_login})
-    following = follow.find_one({"username": this_user})
-
-    if not (follower and following):
-        return jsonify({"message": "User not found"}), 404
+    # Ensure both users exist in the 'follow' collection
+    for user in [user_login, this_user]:
+        if not follow.find_one({"username": user}):
+            follow.insert_one({
+                "username": user,
+                "followers": [],
+                "following": []
+            })
 
     # Add 'this_user' to 'user_login's following list
     follow.update_one(
         {"username": user_login},
-        {"$addToSet": {"followings": {"username": this_user, "img": img}}}
+        {"$addToSet": {"following": {"username": this_user, "img": img}}}
     )
 
     # Add 'user_login' to 'this_user's followers list
@@ -375,7 +385,6 @@ def follow_user():
     )
 
     return jsonify({"message": f"{user_login} is now following {this_user}"}), 200
-
 
 @app.route("/unfollow", methods=["PUT"])
 def unfollow_user():
@@ -404,8 +413,6 @@ def unfollow_user():
         {"username": this_user},
         {"$pull": {"followers": {"username": user_login}}}
     )
-
-    return jsonify({"message": f"{user_login} has unfollowed {this_user}"}), 200
 
 # Fill tracking number   
 @app.route("/edit/<id>", methods=["PUT"])
