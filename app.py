@@ -31,6 +31,8 @@ filltracking = db["filltracking"]
 address = db["address"]
 historymongo = db["history"]
 comment = db["comment"]
+notificate = db["notificate"]
+
 clientId = "1007059418552-8qgb0riokmg3t0t993ecjodnglvm0bj2.apps.googleusercontent.com"
 
 AZURE_STORAGE_CONNECTION_STRING = ""
@@ -336,7 +338,7 @@ def get_profile_info(username):
 #GET POST BY username
 @app.route("/profile/posts/<username>", methods=["GET"])
 def get_profile_post(username):
-    data = list(post.find({"$or": [{"username": username}, {"artist": username}]}))
+    data = list(post.find({"$or": [{"own": username}, {"artist": username}]}))
 
     for doc in data:
         doc["_id"] = str(doc["_id"])  # Convert ObjectId to string
@@ -661,6 +663,25 @@ def get_comment(post_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/get_user_images", methods=["POST"])
+def get_user_images():
+    data = request.json  # Expecting a list of dictionaries
+    usernames = [entry["username"] for entry in data]  # Extract usernames
+    
+    users = customer.find({"username": {"$in": usernames}}, {"username": 1, "img": 1, "_id": 0})
+    
+    user_images = {user["username"]: user.get("img", "default.png") for user in users}  # Default if no image found
+    
+    for entry in data:
+        entry["img"] = user_images.get(entry["username"], "default.png")  # Attach image to each user
+    
+    return jsonify(data)
+
+@app.route("/notificate", methods=["POST"])
+def post_noti():
+    data = request.get_json()
+    notificate.insert_one(data)
+    return {"message": "upload successful"}, 200
 
     
 if __name__ == "__main__":
