@@ -80,47 +80,33 @@ def signup_google():
             return jsonify({"email" : data["email"]}), 200
     return {"message" : "fail"}, 400
 
-
-
 @app.route("/signup", methods=["POST"])
 def signup():
     data = request.get_json()
     find = customer.find_one({"username": data["username"]})
-    if not find:
-        if "password" in data:
-            data["password"] = bcrypt.generate_password_hash(data["password"]).decode('utf-8')
-        
-        base64_strings = data.get("img", [])
-        blob_urls, error = upload_images_to_azure(base64_strings, data.get('name'))
-        if error:
-            return jsonify({"error": error}), 400
-        
-        data["img"] = blob_urls  # แทนที่ Base64 ด้วย URL
+    if not find :
+        if "password" in data :
+            data["password"]=bcrypt.generate_password_hash(data["password"]).decode('utf-8')
         customer.insert_one(data)
-        follow.insert_one({
-            "username": data["username"],
-            "followers": [],
-            "following": []
-        })
-        
         payload = {
-            "username": data['username'],
-            "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=6)  
+        "username": data['username'],
+        "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=6)  
         }
         token = jwt.encode(payload, keyforlogin, algorithm="HS256")
         return jsonify(token), 200
-    
+    return {"message" : "fail"}, 400
+
 @app.route("/login", methods=["POST"])
 def login():
     data = request.get_json()
     token = data.get("credential")
-    if token :
+    if token:
         decoded_data = id_token.verify_oauth2_token(token, requests.Request(), clientId)
         find = customer.find_one({"email": decoded_data["email"]})
-        if find :
+        if find:
             payload = {
-            "username": find['username'],
-            "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=6)  
+                "username": find['username'],
+                "exp": datetime.now(timezone.utc) + timedelta(hours=6)  
             }
             token = jwt.encode(payload, keyforlogin, algorithm="HS256")
             return jsonify(token), 201
@@ -129,13 +115,12 @@ def login():
         if find:
             if bcrypt.check_password_hash(find["password"], data["password"]):
                 payload = {
-                "username": find['username'],
-                "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=6)  
+                    "username": find['username'],
+                    "exp": datetime.now(timezone.utc) + timedelta(hours=6)  
                 }
                 token = jwt.encode(payload, keyforlogin, algorithm="HS256")
                 return jsonify(token), 201
     return {"message": "login fail"}, 401
-
 @app.route("/post", methods=["POST"])
 def postdata():
     data = request.get_json()
