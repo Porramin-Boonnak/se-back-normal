@@ -181,6 +181,17 @@ def getallpost():
     else:
         return jsonify({"error": "Data not found"}), 404
     
+@app.route('/product', methods=['POST'])
+def getallproduct():
+    data = request.get_json()
+    find = list(post.find({"artist": data["artist"],"typepost": "ordinary"}))  
+    if find:
+        for item in find:
+            item['_id'] = str(item['_id'])  
+        return jsonify(find)
+    else:
+        return jsonify({"error": "Data not found"}), 404
+    
 @app.route('/status', methods=['POST'])
 def getstatus():
     data = request.get_json()
@@ -534,6 +545,7 @@ def get_address():
         item['_id'] = str(item['_id']) 
     return jsonify(find), 200
 
+
 @app.route('/delete_address', methods=['DELETE'])
 def delete_address():
     data = request.get_json()
@@ -635,7 +647,8 @@ def post_comment(post_id):
         new_comment = {
             "post_id": post_id,
             "name": data.get("name"),
-            "comment": data.get("comment")
+            "comment": data.get("comment"),
+            "img": data.get("img")
         }
         result = comment.insert_one(new_comment)
         return jsonify({"message": "Comment added", "comment_id": str(result.inserted_id)}), 201
