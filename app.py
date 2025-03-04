@@ -84,17 +84,24 @@ def signup_google():
 def signup():
     data = request.get_json()
     find = customer.find_one({"username": data["username"]})
-    if not find :
-        if "password" in data :
-            data["password"]=bcrypt.generate_password_hash(data["password"]).decode('utf-8')
+    if not find:
+        if "password" in data:
+            data["password"] = bcrypt.generate_password_hash(data["password"]).decode('utf-8')
+        
+        base64_strings = data.get("img", [])
+        blob_urls, error = upload_images_to_azure(base64_strings, data.get('username'))
+        if error:
+            return jsonify({"error": error}), 400
+        
+        data["img"] = blob_urls  # แทนที่ Base64 ด้วย URL
         customer.insert_one(data)
+        
         payload = {
-        "username": data['username'],
-        "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=6)  
+            "username": data['username'],
+            "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=6)  
         }
         token = jwt.encode(payload, keyforlogin, algorithm="HS256")
         return jsonify(token), 200
-    return {"message" : "fail"}, 400
 
 @app.route("/login", methods=["POST"])
 def login():
@@ -121,6 +128,7 @@ def login():
                 token = jwt.encode(payload, keyforlogin, algorithm="HS256")
                 return jsonify(token), 201
     return {"message": "login fail"}, 401
+
 @app.route("/post", methods=["POST"])
 def postdata():
     data = request.get_json()
