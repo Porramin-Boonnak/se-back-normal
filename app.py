@@ -8,7 +8,7 @@ from flask_bcrypt import Bcrypt
 from flask_cors import CORS
 import jwt
 from datetime import datetime, timedelta, timezone
-import requests
+import requests as req
 import base64
 import io
 from azure.storage.blob import BlobServiceClient
@@ -33,9 +33,11 @@ historysellbuy = db["history"]
 comment = db["comment"]
 notificate = db["notificate"]
 bank = db["bank"]
+payout = db["payout"]
 
 clientId = "1007059418552-8qgb0riokmg3t0t993ecjodnglvm0bj2.apps.googleusercontent.com"
 
+AZURE_STORAGE_CONNECTION_STRING = ""
 CONTAINER_NAME = "images"
 blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
 
@@ -613,11 +615,11 @@ def proxy():
     
     try:
         # ส่งคำขอไปยัง URL ที่ได้รับจาก frontend
-        response = requests.get(url)
+        response = req.get(url)
         
         # ส่งผลลัพธ์จาก API ภายนอกกลับไปยัง frontend
         return jsonify(response.json()), response.status_code
-    except requests.exceptions.RequestException as e:
+    except req.exceptions.RequestException as e:
         return jsonify({"error": str(e)}), 500
     
 @app.route('/success', methods=['POST'])
@@ -696,15 +698,24 @@ def historysellandbuy():
 
 @app.route('/bank/<string:id_user>', methods=['GET'])
 def get_bank(id_user):
-    find=bank.find_one({"username":id_user})
-    return (find), 200
+    find = bank.find_one({"username": id_user})  # ซ่อน _id เพื่อไม่ให้ส่งไป
+    if find:
+        find["_id"] = str(find["_id"])
+        return jsonify(find), 200
+    return jsonify({"message": "fail"}), 400
 
 @app.route('/bank', methods=['POST'])
 def post_bank():
     data = request.get_json()
-    find=bank.insert_one(data)
-    return (find), 200
+    bank.insert_one(data)
+    return {"message":"successful"}, 200
+
+@app.route('/payout', methods=['POST'])
+def post_payout():
+    data = request.get_json()
+    payout.insert_one(data)
+    return {"message":"successful"}, 200
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)
 
 
