@@ -135,6 +135,15 @@ def login():
 def postdata():
     data = request.get_json()
     base64_strings = data.get("img", [])
+    if isinstance(data.get("originalimg"), list) and data["originalimg"]:
+        base64_strings_originalimg = data["originalimg"]
+        blob_urls, error = upload_images_to_azure(base64_strings_originalimg, f"{data.get('name', 'unknown')}_originalimg")
+
+        if error:
+            print(f"Error uploading images: {error}")  # หรือใช้ logging
+            data["originalimg"] = []
+        else:
+            data["originalimg"] = blob_urls
     blob_urls, error = upload_images_to_azure(base64_strings, data.get('name'))
     
     if error:
