@@ -184,6 +184,21 @@ def getallpost():
         return jsonify(data)
     else:
         return jsonify({"error": "Data not found"}), 404
+
+@app.route('/post/<string:_id>', methods=['DELETE'])
+def delete_post(_id):
+    try:
+        object_id = ObjectId(_id)  # แปลง _id เป็น ObjectId
+    except:
+        return jsonify({"error": "Invalid ID format"}), 400
+    
+    # ลบโพสต์จาก MongoDB
+    result = post.delete_one({"_id": object_id})
+    
+    if result.deleted_count == 1:
+        return jsonify({"message": "Post deleted successfully"}), 200
+    else:
+        return jsonify({"error": "Post not found"}), 404
     
 @app.route('/product', methods=['POST'])
 def getallproduct():
