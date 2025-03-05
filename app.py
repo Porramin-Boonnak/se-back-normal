@@ -29,7 +29,7 @@ follow = db["follow"]
 report = db["report"]
 filltracking = db["filltracking"]
 address = db["address"]
-historymongo = db["history"]
+historysellbuy = db["history"]
 comment = db["comment"]
 notificate = db["notificate"]
 
@@ -603,11 +603,7 @@ def put_amount():
             return {"message": "successful"}, 200
     return {"message": "fail"}, 400
 
-@app.route('/history', methods=['post'])
-def history():
-    data = request.get_json()
-    historymongo.insert_many(data)
-    return {"message": "successful"}, 200
+
 
 @app.route('/proxy', methods=['POST'])
 def proxy():
@@ -637,7 +633,7 @@ def success():
     elif data["typepost"] == "ordinary" :
         object_id = ObjectId(data["_id"])   
         find = post.find_one({"_id": object_id})
-        post.update_one({"_id": object_id},{"$set":{"payment":data["payment"]}})
+        post.update_one({"_id": object_id},{"$unset":{"payment":data["payment"]}})
         return {"message": "successful"}, 200
     return {"message": "fail"}, 400
 
@@ -692,8 +688,13 @@ def post_noti():
     notificate.insert_one(data)
     return {"message": "upload successful"}, 200
 
-    
+@app.route('/history', methods=['post'])
+def historysellandbuy():
+    data = request.get_json()
+    historysellbuy.insert_one(data)
+    return {"message": "successful"}, 200
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5001, debug=True)
 
 
