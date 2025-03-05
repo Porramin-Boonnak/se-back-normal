@@ -694,6 +694,27 @@ def historysellandbuy():
     historysellbuy.insert_one(data)
     return {"message": "successful"}, 200
 
+@app.route("/get_uniq_posts", methods=["POST"])
+def get_uniq_posts():
+    
+    data = request.json
+    login_user = data.get("loginUser")
+
+    if not login_user:
+        return jsonify({"error": "User not logged in"}), 400
+
+        # ค้นหาโพสต์ที่มีเงื่อนไขตามที่กำหนด
+    posts = list(post.find(
+        {"own": login_user, "typepost": "uniq", "status": "open"}
+    ))
+
+        # แปลง _id ให้เป็น string ก่อนส่งกลับ
+    for post_item in posts:
+        post_item["_id"] = str(post_item["_id"])  # แปลง _id เป็น string
+
+    return jsonify({"posts": posts}), 200
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001, debug=True)
 
