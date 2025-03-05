@@ -32,10 +32,10 @@ address = db["address"]
 historysellbuy = db["history"]
 comment = db["comment"]
 notificate = db["notificate"]
+bank = db["bank"]
 
 clientId = "1007059418552-8qgb0riokmg3t0t993ecjodnglvm0bj2.apps.googleusercontent.com"
 
-AZURE_STORAGE_CONNECTION_STRING = ""
 CONTAINER_NAME = "images"
 blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
 
@@ -694,6 +694,16 @@ def historysellandbuy():
     historysellbuy.insert_one(data)
     return {"message": "successful"}, 200
 
+@app.route('/bank/<string:id_user>', methods=['GET'])
+def get_bank(id_user):
+    find=bank.find_one({"username":id_user})
+    return (find), 200
+
+@app.route('/bank', methods=['POST'])
+def post_bank():
+    data = request.get_json()
+    find=bank.insert_one(data)
+    return (find), 200
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001, debug=True)
 
