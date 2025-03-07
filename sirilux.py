@@ -1,39 +1,67 @@
-from flask import Flask, request, jsonify
-from pymongo import MongoClient
+from flask import request, Flask,jsonify
+from pymongo import MongoClient, ReturnDocument
+from bson.objectid import ObjectId
+from bson import json_util
+from google.oauth2 import id_token
+from google.auth.transport import requests
+from flask_bcrypt import Bcrypt
+from flask_cors import CORS
+import jwt
+import datetime
+import requests
 uri = "mongodb+srv://se1212312121:se1212312121@cluster0.kjvosuu.mongodb.net/"
 
-app = Flask(__name__)
-
+# Create a new client and connect to the server
 client = MongoClient(uri)
-db = client["your_database"]
-collection = db["products"]
 
-@app.route("/sell", methods=["POST"])
-def sell_product():
-    data = request.json
-    product_id = data.get("id")
-    loginuser = data.get("loginuser")  # รับค่าผู้ใช้งานที่ล็อกอินเข้ามา
+app = Flask(__name__)
+CORS(app) 
+keyforlogin = "1212312121"
+bcrypt = Bcrypt(app)
+db = client["vivart"]
+customer = db["customer"]
+post = db["post"]
+cart = db["cart"]
+follow = db["follow"]
+report = db["report"]
+filltracking = db["filltracking"]
+address = db["address"]
+historymongo = db["history"]
+clientId = "1007059418552-8qgb0riokmg3t0t993ecjodnglvm0bj2.apps.googleusercontent.com"
 
-    if not product_id or not loginuser:
-        return jsonify({"error": "Product ID and login user are required"}), 400
+#bidHistory
+@app.route('/purchase_history', methods=['GET'])
+def get_purchase_history():
+    login_user = request.args.get('LoginUser')  # Get LoginUser from query parameter
+    
+    if not login_user:
+        return jsonify({"message": "LoginUser parameter is required"}), 400
 
-    # ค้นหาสินค้าตาม id และ owner ต้องตรงกับ loginuser
-    product = collection.find_one({"id": product_id, "owner": loginuser})
+    try:
+        # Query the historymongo collection to find the user's purchase history
+        purchases = historymongo.find({"LoginUser": login_user})
 
-    if not product:
-        return jsonify({"error": "Product not found or you don't have permission"}), 403
+        # Use count_documents() instead of count()
+        if historymongo.count_documents({"LoginUser": login_user}) == 0:
+            return jsonify({"message": "No purchase history found for this user."}), 404
 
-    # ตรวจสอบว่า type == "post" และต้องไม่ซ้ำ (unique)
-    if collection.find_one({"type": "post", "id": product_id}):
-        return jsonify({"error": "Product with this type 'post' already exists"}), 409
+        # Format the result
+        purchase_list = []
+        for purchase in purchases:
+            purchase_details = {
+                "img": purchase.get("img"),
+                "name": purchase.get("name"),
+                "price": purchase.get("price"),
+                "amount": purchase.get("amount"),
+                #"purchase_date": purchase.get("purchase_date")
+            }
+            purchase_list.append(purchase_details)
 
-    # อัปเดตสถานะเป็น "sold"
-    result = collection.update_one({"id": product_id}, {"$set": {"status": "sold"}})
+        return jsonify(purchase_list)
+    
+    except Exception as e:
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
-    if result.modified_count:
-        return jsonify({"message": "Product sold successfully"}), 200
-    else:
-        return jsonify({"error": "Failed to update product"}), 500
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)
