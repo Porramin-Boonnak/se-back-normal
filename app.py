@@ -7,8 +7,11 @@ from google.auth.transport import requests
 from flask_bcrypt import Bcrypt
 from flask_cors import CORS
 import jwt
-import datetime
-import requests
+from datetime import datetime, timedelta, timezone
+import requests as req
+import base64
+import io
+from azure.storage.blob import BlobServiceClient
 uri = "mongodb+srv://se1212312121:se1212312121@cluster0.kjvosuu.mongodb.net/"
 
 # Create a new client and connect to the server
@@ -26,8 +29,41 @@ follow = db["follow"]
 report = db["report"]
 filltracking = db["filltracking"]
 address = db["address"]
-historymongo = db["history"]
+historysellbuy = db["history"]
+comment = db["comment"]
+notificate = db["notificate"]
+bank = db["bank"]
+payout = db["payout"]
+
 clientId = "1007059418552-8qgb0riokmg3t0t993ecjodnglvm0bj2.apps.googleusercontent.com"
+
+AZURE_STORAGE_CONNECTION_STRING = ""
+CONTAINER_NAME = "images"
+blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+
+
+#Function อัพรูปลง Azure แล้ว return ค่าเป็น link ของรูปนั้น
+def upload_images_to_azure(base64_strings, name):
+    if not base64_strings:
+        return None, "No image data provided"
+
+    blob_urls = []
+    for i, base64_string in enumerate(base64_strings):
+        try:
+            if "," in base64_string:
+                base64_string = base64_string.split(",")[1]  # ลบ prefix "data:image/png;base64,"
+            
+            image_data = base64.b64decode(base64_string)  # แปลง Base64 เป็นไบนารี
+            blob_name = f"{name}_{i}.png"  # ตั้งชื่อไฟล์ให้แต่ละรูป
+
+            blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=blob_name)
+            blob_client.upload_blob(io.BytesIO(image_data), overwrite=True)
+            
+            blob_urls.append(blob_client.url)  # เก็บ URL ของไฟล์ที่อัปโหลด
+        except Exception as e:
+            return None, f"Failed to upload image {i}: {str(e)}"
+    
+    return blob_urls, None
 
 @app.route("/", methods=["GET"])
 def test():
@@ -52,34 +88,36 @@ def signup_google():
 def signup():
     data = request.get_json()
     find = customer.find_one({"username": data["username"]})
-    if not find :
-        if "password" in data :
-            data["password"]=bcrypt.generate_password_hash(data["password"]).decode('utf-8')
+    if not find:
+        if "password" in data:
+            data["password"] = bcrypt.generate_password_hash(data["password"]).decode('utf-8')
+        
+        base64_strings = data.get("img", [])
+        blob_urls, error = upload_images_to_azure(base64_strings, data.get('username'))
+        if error:
+            return jsonify({"error": error}), 400
+        
+        data["img"] = blob_urls  # แทนที่ Base64 ด้วย URL
         customer.insert_one(data)
-        follow.insert_one({
-            "username":data["username"],
-            "followers": [],
-            "following": []
-        })
+        
         payload = {
-        "username": data['username'],
-        "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=6)  
+            "username": data['username'],
+            "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=6)  
         }
         token = jwt.encode(payload, keyforlogin, algorithm="HS256")
         return jsonify(token), 200
-    return {"message" : "fail"}, 400
 
 @app.route("/login", methods=["POST"])
 def login():
     data = request.get_json()
     token = data.get("credential")
-    if token :
+    if token:
         decoded_data = id_token.verify_oauth2_token(token, requests.Request(), clientId)
         find = customer.find_one({"email": decoded_data["email"]})
-        if find :
+        if find:
             payload = {
-            "username": find['username'],
-            "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=6)  
+                "username": find['username'],
+                "exp": datetime.now(timezone.utc) + timedelta(hours=6)  
             }
             token = jwt.encode(payload, keyforlogin, algorithm="HS256")
             return jsonify(token), 201
@@ -88,8 +126,8 @@ def login():
         if find:
             if bcrypt.check_password_hash(find["password"], data["password"]):
                 payload = {
-                "username": find['username'],
-                "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=6)  
+                    "username": find['username'],
+                    "exp": datetime.now(timezone.utc) + timedelta(hours=6)  
                 }
                 token = jwt.encode(payload, keyforlogin, algorithm="HS256")
                 return jsonify(token), 201
@@ -98,6 +136,22 @@ def login():
 @app.route("/post", methods=["POST"])
 def postdata():
     data = request.get_json()
+    base64_strings = data.get("img", [])
+    if isinstance(data.get("originalimg"), list) and data["originalimg"]:
+        base64_strings_originalimg = data["originalimg"]
+        blob_urls, error = upload_images_to_azure(base64_strings_originalimg, f"{data.get('name', 'unknown')}_originalimg")
+
+        if error:
+            print(f"Error uploading images: {error}")  # หรือใช้ logging
+            data["originalimg"] = []
+        else:
+            data["originalimg"] = blob_urls
+    blob_urls, error = upload_images_to_azure(base64_strings, data.get('name'))
+    
+    if error:
+        return jsonify({"error": error}), 400
+    
+    data["img"] = blob_urls  # แทนที่ Base64 ด้วย URL
     post.insert_one(data)
     return {"message": "upload successful"}, 200
 
@@ -130,6 +184,32 @@ def getallpost():
         for item in data:
             item['_id'] = str(item['_id'])  # แปลง ObjectId เป็น string
         return jsonify(data)
+    else:
+        return jsonify({"error": "Data not found"}), 404
+
+@app.route('/post/<string:_id>', methods=['DELETE'])
+def delete_post(_id):
+    try:
+        object_id = ObjectId(_id)  # แปลง _id เป็น ObjectId
+    except:
+        return jsonify({"error": "Invalid ID format"}), 400
+    
+    # ลบโพสต์จาก MongoDB
+    result = post.delete_one({"_id": object_id})
+    
+    if result.deleted_count == 1:
+        return jsonify({"message": "Post deleted successfully"}), 200
+    else:
+        return jsonify({"error": "Post not found"}), 404
+    
+@app.route('/product', methods=['POST'])
+def getallproduct():
+    data = request.get_json()
+    find = list(post.find({"artist": data["artist"],"typepost": "ordinary"}))  
+    if find:
+        for item in find:
+            item['_id'] = str(item['_id'])  
+        return jsonify(find)
     else:
         return jsonify({"error": "Data not found"}), 404
     
@@ -239,7 +319,7 @@ def deletelike(_id):
 def profile_update():
     data = request.json
     username = data.get("username")
-
+   
     if not username:
         return jsonify({"error": "Username is required"}), 400
 
@@ -284,7 +364,7 @@ def get_profile_info(username):
 #GET POST BY username
 @app.route("/profile/posts/<username>", methods=["GET"])
 def get_profile_post(username):
-    data = list(post.find({"$or": [{"username": username}, {"artist": username}]}))
+    data = list(post.find({"$or": [{"own": username}, {"artist": username}]}))
 
     for doc in data:
         doc["_id"] = str(doc["_id"])  # Convert ObjectId to string
@@ -306,22 +386,24 @@ def follow_user():
     follow_info = request.get_json()
     user_login = follow_info.get("user_login")  # The user who wants to follow
     this_user = follow_info.get("this_user")  # The user being followed
-    img = follow_info.get("img")  # Optional: image URL
+    img = follow_info.get("img")  # Optional image URL
 
     if not user_login or not this_user:
         return jsonify({"message": "Invalid input"}), 400
 
-    # Check if both users exist in the 'follow' collection
-    follower = follow.find_one({"username": user_login})
-    following = follow.find_one({"username": this_user})
-
-    if not (follower and following):
-        return jsonify({"message": "User not found"}), 404
+    # Ensure both users exist in the 'follow' collection
+    for user in [user_login, this_user]:
+        if not follow.find_one({"username": user}):
+            follow.insert_one({
+                "username": user,
+                "followers": [],
+                "following": []
+            })
 
     # Add 'this_user' to 'user_login's following list
     follow.update_one(
         {"username": user_login},
-        {"$addToSet": {"followings": {"username": this_user, "img": img}}}
+        {"$addToSet": {"following": {"username": this_user, "img": img}}}
     )
 
     # Add 'user_login' to 'this_user's followers list
@@ -331,7 +413,6 @@ def follow_user():
     )
 
     return jsonify({"message": f"{user_login} is now following {this_user}"}), 200
-
 
 @app.route("/unfollow", methods=["PUT"])
 def unfollow_user():
@@ -360,8 +441,6 @@ def unfollow_user():
         {"username": this_user},
         {"$pull": {"followers": {"username": user_login}}}
     )
-
-    return jsonify({"message": f"{user_login} has unfollowed {this_user}"}), 200
 
 # Fill tracking number   
 @app.route("/edit/<id>", methods=["PUT"])
@@ -486,6 +565,7 @@ def get_address():
         item['_id'] = str(item['_id']) 
     return jsonify(find), 200
 
+
 @app.route('/delete_address', methods=['DELETE'])
 def delete_address():
     data = request.get_json()
@@ -540,11 +620,7 @@ def put_amount():
             return {"message": "successful"}, 200
     return {"message": "fail"}, 400
 
-@app.route('/history', methods=['post'])
-def history():
-    data = request.get_json()
-    historymongo.insert_many(data)
-    return {"message": "successful"}, 200
+
 
 @app.route('/proxy', methods=['POST'])
 def proxy():
@@ -554,11 +630,11 @@ def proxy():
     
     try:
         # ส่งคำขอไปยัง URL ที่ได้รับจาก frontend
-        response = requests.get(url)
+        response = req.get(url)
         
         # ส่งผลลัพธ์จาก API ภายนอกกลับไปยัง frontend
         return jsonify(response.json()), response.status_code
-    except requests.exceptions.RequestException as e:
+    except req.exceptions.RequestException as e:
         return jsonify({"error": str(e)}), 500
     
 @app.route('/success', methods=['POST'])
@@ -574,10 +650,107 @@ def success():
     elif data["typepost"] == "ordinary" :
         object_id = ObjectId(data["_id"])   
         find = post.find_one({"_id": object_id})
-        post.update_one({"_id": object_id},{"$set":{"payment":data["payment"]}})
+        post.update_one({"_id": object_id},{"$unset":{"payment":data["payment"]}})
         return {"message": "successful"}, 200
     return {"message": "fail"}, 400
 
+@app.route("/comment/<string:post_id>", methods=["POST"])
+def post_comment(post_id):
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No JSON data received"})
+        new_comment = {
+            "post_id": post_id,
+            "name": data.get("name"),
+            "comment": data.get("comment"),
+            "img": data.get("img")
+        }
+        result = comment.insert_one(new_comment)
+        return jsonify({"message": "Comment added", "comment_id": str(result.inserted_id)}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+@app.route("/comment/<string:post_id>", methods=["GET"])
+def get_comment(post_id):
+    try:
+        
+        find = list(comment.find({"post_id": post_id}))
+        if find :
+            for item in find:
+                item['_id'] = str(item['_id'])
+
+            return jsonify(find),200
+        return jsonify({"message": "Comment fail"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/get_user_images", methods=["POST"])
+def get_user_images():
+    data = request.json  # Expecting a list of dictionaries
+    usernames = [entry["username"] for entry in data]  # Extract usernames
+    
+    users = customer.find({"username": {"$in": usernames}}, {"username": 1, "img": 1, "_id": 0})
+    
+    user_images = {user["username"]: user.get("img", "default.png") for user in users}  # Default if no image found
+    
+    for entry in data:
+        entry["img"] = user_images.get(entry["username"], "default.png")  # Attach image to each user
+    
+    return jsonify(data)
+
+@app.route("/notificate", methods=["POST"])
+def post_noti():
+    data = request.get_json()
+    notificate.insert_one(data)
+    return {"message": "upload successful"}, 200
+
+@app.route('/history', methods=['post'])
+def historysellandbuy():
+    data = request.get_json()
+    historysellbuy.insert_one(data)
+    return {"message": "successful"}, 200
+
+@app.route("/get_uniq_posts", methods=["POST"])
+def get_uniq_posts():
+    
+    data = request.json
+    login_user = data.get("loginUser")
+
+    if not login_user:
+        return jsonify({"error": "User not logged in"}), 400
+
+        # ค้นหาโพสต์ที่มีเงื่อนไขตามที่กำหนด
+    posts = list(post.find(
+        {"own": login_user, "typepost": "uniq", "status": "open"}
+    ))
+
+        # แปลง _id ให้เป็น string ก่อนส่งกลับ
+    for post_item in posts:
+        post_item["_id"] = str(post_item["_id"])  # แปลง _id เป็น string
+
+    return jsonify({"posts": posts}), 200
+
+
+@app.route('/bank/<string:id_user>', methods=['GET'])
+def get_bank(id_user):
+    find = bank.find_one({"username": id_user})  # ซ่อน _id เพื่อไม่ให้ส่งไป
+    if find:
+        find["_id"] = str(find["_id"])
+        return jsonify(find), 200
+    return jsonify({"message": "fail"}), 400
+
+@app.route('/bank', methods=['POST'])
+def post_bank():
+    data = request.get_json()
+    bank.insert_one(data)
+    return {"message":"successful"}, 200
+
+@app.route('/payout', methods=['POST'])
+def post_payout():
+    data = request.get_json()
+    payout.insert_one(data)
+    return {"message":"successful"}, 200
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
 
