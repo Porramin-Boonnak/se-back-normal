@@ -491,9 +491,11 @@ def submit_tracking():
 def serialize_report(report):
     return {
         '_id': str(report['_id']),
+        'postid' : report.get('postid'),
         'name': report.get('name', 'Unnamed Report'),
         'description': report.get('description', ''),
-        'date': report.get('date', '')
+        'date': report.get('date', ''),
+        'artist' : report.get('artist')
     }
 
 # 📥 GET all reports
@@ -517,12 +519,8 @@ def get_report(report_id):
 @app.route('/api/reports', methods=['POST'])
 def create_report():
     data = request.json
-    new_report = {
-        'name': data.get('name'),
-        'description': data.get('description', ''),
-        'date': data.get('date', '')
-    }
-    result = report.insert_one(new_report) 
+
+    result = report.insert_one(data) 
     return jsonify({'message': 'Report created', 'id': str(result.inserted_id)}), 201
 
 @app.route('/post/<string:_id>', methods=['PUT'])
@@ -781,7 +779,32 @@ def get_bid_history(login_user):
     
     except Exception as e:
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+    
+@app.route('/delete_post/<string:post_id>', methods=['DELETE'])
+def admin_delete_post(post_id):
+    # Convert string post_id to ObjectId for MongoDB query
+    try:
+        result = post.delete_one({'_id': ObjectId(post_id)})
+        if result.deleted_count == 1:
+            return jsonify({"message": "Post deleted successfully"}), 200
+        else:
+            return jsonify({"message": "Post not found"}), 404
+    except Exception as e:
+        return jsonify({"message": str(e)}), 400
         
+@app.route('/delete_report/<string:report_id>', methods=['DELETE'])
+def admin_delete_report(report_id):
+    try:
+        # Convert string report_id to ObjectId for MongoDB query
+        result = report.delete_one({'_id': ObjectId(report_id)})
+        
+        if result.deleted_count == 1:
+            return jsonify({"message": "Report deleted successfully"}), 200
+        else:
+            return jsonify({"message": "Report not found"}), 404
+    except Exception as e:
+        return jsonify({"message": str(e)}), 400
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
 
