@@ -791,6 +791,15 @@ def admin_delete_post(post_id):
             return jsonify({"message": "Post not found"}), 404
     except Exception as e:
         return jsonify({"message": str(e)}), 400
+    
+@app.route('/paidHistory/<string:id_user>', methods=['GET'])
+def get_paid(id_user):
+    find = list(historysellbuy.find({"customer": id_user}))
+    if find:
+        for item in find :
+            item["_id"] = str(item["_id"])
+        return jsonify(find), 200
+    return jsonify({"message": "fail"}), 400
         
 @app.route('/delete_report/<string:report_id>', methods=['DELETE'])
 def admin_delete_report(report_id):
