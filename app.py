@@ -751,6 +751,36 @@ def post_payout():
     data = request.get_json()
     payout.insert_one(data)
     return {"message":"successful"}, 200
+
+@app.route('/bid_history/<string:login_user>', methods=['GET'])
+def get_bid_history(login_user):
+    
+    if not login_user:
+        return jsonify({"message": "LoginUser parameter is required"}), 400
+
+    try:
+        # Query the historymongo collection to find the user's purchase history
+        purchases = bid.find({"user": login_user})
+
+        # Use count_documents() instead of count()
+        if bid.count_documents({"user": login_user}) == 0:
+            return jsonify([]), 200
+
+        # Format the result
+        
+        purchase_list = []
+        for purchase in purchases:
+            purchase_details = {
+                **purchase,  # คัดลอกข้อมูลเดิมทั้งหมด
+                "_id": str(ObjectId()),  # เปลี่ยน _id เป็นค่าใหม่
+            }
+            purchase_list.append(purchase_details)
+
+        return jsonify(purchase_list)
+    
+    except Exception as e:
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+    
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
 
