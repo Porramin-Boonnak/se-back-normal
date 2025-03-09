@@ -34,6 +34,7 @@ comment = db["comment"]
 notificate = db["notificate"]
 bank = db["bank"]
 payout = db["payout"]
+bid = db["bid"]
 
 clientId = "1007059418552-8qgb0riokmg3t0t993ecjodnglvm0bj2.apps.googleusercontent.com"
 
@@ -780,7 +781,7 @@ def get_bid_history(login_user):
     
     except Exception as e:
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
-    
+        
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
 
