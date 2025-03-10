@@ -704,11 +704,28 @@ def post_noti():
     notificate.insert_one(data)
     return {"message": "upload successful"}, 200
 
-@app.route('/history', methods=['post'])
+@app.route('/history', methods=['POST'])
 def historysellandbuy():
     data = request.get_json()
     historysellbuy.insert_one(data)
     return {"message": "successful"}, 200
+
+@app.route('/history/<string:username>', methods=['GET'])
+def get_historysellandbuy(username):
+    data = list(historysellbuy.find({"own":username}))
+    for item in data :
+        item["_id"] = str(item["_id"])
+    return jsonify(data), 200
+
+@app.route('/countlike/<string:username>', methods=['GET'])
+def countlike(username):
+    data = list(post.find({"artist": username}))
+    total_likes = 0
+    for item in data:
+        item["_id"] = str(item["_id"])  
+        total_likes += len(item.get("like", []))  
+    
+    return jsonify({"total_likes": total_likes}), 200
 
 @app.route("/get_uniq_posts", methods=["POST"])
 def get_uniq_posts():
