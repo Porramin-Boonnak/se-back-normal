@@ -35,6 +35,7 @@ notificate = db["notificate"]
 bank = db["bank"]
 payout = db["payout"]
 bid = db["bid"]
+collection = db["tracking"]
 
 clientId = "1007059418552-8qgb0riokmg3t0t993ecjodnglvm0bj2.apps.googleusercontent.com"
 
@@ -916,6 +917,63 @@ def check_bid_end(login_user):
     # Return the list as a JSON response
     return jsonify(bid_list)
 
+@app.route("/track/<string:tracking_number>", methods=["POST"])
+def track_post(tracking_number):
+    if not tracking_number:
+        return jsonify({"message": "Please provide a tracking number"}), 400
+
+    # Request Token
+    auth_url = "https://trackapi.thailandpost.co.th/post/api/v1/authenticate/token"
+    auth_headers = {
+        "Authorization": f"Token EUE@S+PrA4L9VnS^RtP0D_AcM_S-R1K.WIC;ZYDdA.G^H9CrUiNzQcYkY?PzGJRvPdZeKHAYHZC!TGY:SsESJsE1HGKdW~ImE7LT",
+        "Content-Type": "application/json"
+    }
+    auth_response = req.post(auth_url, headers=auth_headers)
+    
+    if auth_response.status_code != 200:
+        return jsonify({"message": "Failed to authenticate"}), 500
+
+    token = auth_response.json().get('token')
+
+    # Request Tracking Information
+    track_url = "https://trackapi.thailandpost.co.th/post/api/v1/track"
+    track_headers = {
+        "Authorization": f"Token {token}",
+        "Content-Type": "application/json"
+    }
+    track_data = {
+        "status": "all",
+        "language": "TH",
+        "barcode": [tracking_number]
+    }
+    track_response = req.post(track_url, headers=track_headers, json=track_data)
+
+    if track_response.status_code != 200:
+        return jsonify({"message": "Tracking request failed"}), 500
+
+    data = track_response.json()
+    items = data['response']['items'][tracking_number]
+    
+    if items:
+        # Structure JSON for JavaScript
+        return jsonify({
+            "response": {
+                "items": {
+                    tracking_number: [
+                        {
+                            "status": item.get("status"),
+                            "status_description": item.get("status_description"),
+                            "location": item.get("location"),
+                            "status_date": item.get("status_date")
+                        }
+                        for item in items
+                    ]
+                }
+            }
+        })
+    else:
+        return jsonify({"message": "No status data available"}), 404
+    
 @app.route("/filltracking", methods=["POST"])
 def post_filltracking():
     # 
