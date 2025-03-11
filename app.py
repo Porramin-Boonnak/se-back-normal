@@ -320,32 +320,35 @@ def deletelike(_id):
 def profile_update():
     data = request.json
     username = data.get("username")
-   
+    
     if not username:
         return jsonify({"error": "Username is required"}), 400
-
+    
     update_fields = {}
+    
     if "user_bio" in data:
         update_fields["user_bio"] = data["user_bio"]
-    if "profile_pic" in data:
-        update_fields["img"] = data["profile_pic"]  # Ensure profile_pic is valid
-
+    
+    if "profile_pic" in data and data["profile_pic"]:
+        blob_urls, error = upload_images_to_azure(data["profile_pic"], username)
+        if error:
+            return jsonify({"error": error}), 400
+        update_fields["img"] = blob_urls  # Store uploaded image URLs
+    
     if not update_fields:
         return jsonify({"error": "No fields to update"}), 400
-
+    
     updated_user = customer.find_one_and_update(
         {"username": username},
         {"$set": update_fields},
         return_document=ReturnDocument.AFTER
     )
-
+    
     if updated_user:
-        # Convert ObjectId to string for JSON serialization
-        updated_user["_id"] = str(updated_user["_id"])
+        updated_user["_id"] = str(updated_user["_id"])  # Convert ObjectId to string
         return jsonify(updated_user), 200
     else:
         return jsonify({"error": "User not found"}), 404
-
 
 @app.route("/profile/info/<username>", methods=["GET"])
 def get_profile_info(username):
@@ -872,6 +875,45 @@ def get_bids(post_id):
     # ดึงรายการบิดทั้งหมดของโพสต์นี้
     all_bids = list(bid.find({"_id_post": post_id}, {"_id": 0}))
     return jsonify(all_bids), 200
+
+@app.route("/notificate/<string:username>", methods=["GET"])
+def get_notifications(username):
+    if not username:
+        return jsonify({"error": "Username is required"}), 400
+    
+    notifications = list(notificate.find({"receiver": username}, {"_id": 0}))  # Exclude _id field
+    return jsonify(notifications)
+
+@app.route("/check_bid_end/<string:login_user>", methods=["GET"])
+def get_bids(login_user):
+    purchases = bid.find({"user": login_user})
+    bid_list = []
+    
+    for purchase in purchases:
+        # Initialize bid_data
+        bid_data = {
+            "_id": str(purchase["_id"]),
+            "_id_post": purchase["_id_post"],
+            "user": purchase["user"],
+            "artist": purchase["artist"],
+            "price": purchase["price"]
+        }
+        
+        # Find the corresponding post data for the given _id_post
+        post_data = post.find_one({"_id": ObjectId(purchase["_id_post"])})
+        
+        # Check if post_data exists and contains the 'typepost' field
+        if post_data and "endbid" in post_data:
+            bid_data["endbid"] = post_data["endbid"]
+        else:
+            bid_data["endbid"] = None
+        
+        # Append the bid data to the list
+        bid_list.append(bid_data)
+    
+    # Return the list as a JSON response
+    return jsonify(bid_list)
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
