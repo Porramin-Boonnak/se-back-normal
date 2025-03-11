@@ -831,6 +831,48 @@ def admin_delete_report(report_id):
     except Exception as e:
         return jsonify({"message": str(e)}), 400
 
+
+@app.route("/bid", methods=["POST"])
+def place_bid():
+    data = request.json
+    post_id = data["_id_post"]
+    username = data["user"]
+    new_price = int(data["price"])
+
+    # ค้นหาบิดก่อนหน้า
+    existing_bid = bid.find_one({"_id_post": post_id, "user": username})
+
+    if existing_bid:
+        old_price = existing_bid["price"]
+        if new_price > old_price:  # เช็กว่าราคาใหม่ต้องสูงกว่าเก่า
+            bid.update_one(
+                {"_id_post": post_id, "user": username},
+                {"$set": {"price": new_price}}
+            )
+            return jsonify({"message": "Bid updated successfully!", "price": new_price}), 200
+        else:
+            return jsonify({"error": "New bid must be greater than your previous bid!"}), 400
+    else:
+        # เพิ่มบิดใหม่ถ้ายังไม่เคยบิด
+        bid_data = {
+                    "_id_post": post_id,
+                    "user": data["user"],  # ต้องใช้ค่าจาก front-end
+                    "artist": data["artist"],
+                    "price": new_price,
+                    "img_user": data["img_user"],
+                    "img_post": data["img_post"]
+                }
+
+
+        bid.insert_one(bid_data)
+        return jsonify({"message": "Bid placed successfully!", "price": new_price}), 201
+    
+@app.route("/bid/<post_id>", methods=["GET"])
+def get_bids(post_id):
+    # ดึงรายการบิดทั้งหมดของโพสต์นี้
+    all_bids = list(bid.find({"_id_post": post_id}, {"_id": 0}))
+    return jsonify(all_bids), 200
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
 
