@@ -326,18 +326,25 @@ def profile_update():
     
     update_fields = {}
     
+    # Update bio if provided
     if "user_bio" in data:
         update_fields["user_bio"] = data["user_bio"]
     
+    # Handle profile picture upload
     if "profile_pic" in data and data["profile_pic"]:
-        blob_urls, error = upload_images_to_azure(data["profile_pic"], username)
+        timestamp = str(int(datetime.now().timestamp()))  # Generate a timestamp
+        blob_urls, error = upload_images_to_azure(data["profile_pic"], f"{username}_{timestamp}")
+        
         if error:
-            return jsonify({"error": error}), 400
+            return jsonify({"error": error}), 400  # Return error if upload fails
+        
         update_fields["img"] = blob_urls  # Store uploaded image URLs
     
+    # If no fields to update, return an error
     if not update_fields:
         return jsonify({"error": "No fields to update"}), 400
     
+    # Update the database
     updated_user = customer.find_one_and_update(
         {"username": username},
         {"$set": update_fields},
