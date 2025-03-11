@@ -828,6 +828,16 @@ def get_paid(id_user):
             item["_id"] = str(item["_id"])
         return jsonify(find), 200
     return jsonify({"message": "fail"}), 400
+
+@app.route('/toshipping/<string:id_user>', methods=['GET'])
+def get_ship(id_user):
+    find = list(filltracking.find({"customer": id_user}))
+    if find:
+        for item in find :
+            item["_id"] = str(item["_id"])
+            item["tracking_number"] = str(item["tracking_number"])
+        return jsonify(find), 200
+    return jsonify({"message": "fail"}), 400
         
 @app.route('/delete_report/<string:report_id>', methods=['DELETE'])
 def admin_delete_report(report_id):
