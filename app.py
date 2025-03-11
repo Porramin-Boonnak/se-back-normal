@@ -921,6 +921,12 @@ def check_bid_end(login_user):
     # Return the list as a JSON response
     return jsonify(bid_list)
 
+@app.route("/filltracking", methods=["POST"])
+def post_filltracking():
+    # 
+    data = request.get_json()
+    filltracking.insert_one(data)
+    return jsonify({"massage":"success"}), 200
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
