@@ -885,7 +885,7 @@ def get_notifications(username):
     return jsonify(notifications)
 
 @app.route("/check_bid_end/<string:login_user>", methods=["GET"])
-def get_bids(login_user):
+def check_bid_end(login_user):
     purchases = bid.find({"user": login_user})
     bid_list = []
     
