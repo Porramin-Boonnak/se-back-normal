@@ -843,7 +843,14 @@ def get_ship(id_user):
             item["tracking_number"] = str(item["tracking_number"])
         return jsonify(find), 200
     return jsonify({"message": "fail"}), 400
-        
+
+@app.route("/following/<string:id_user>", methods=['GET'])
+def get_following(id_user):
+    user = follow.find_one({"username": id_user})
+    return jsonify(list(user["following"]))
+    
+    return jsonify({"error": "User not found or no followings"}), 404
+
 @app.route('/delete_report/<string:report_id>', methods=['DELETE'])
 def admin_delete_report(report_id):
     try:
