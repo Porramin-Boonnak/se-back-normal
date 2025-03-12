@@ -907,36 +907,6 @@ def get_notifications(username):
     notifications = list(notificate.find({"receiver": username}, {"_id": 0}))  # Exclude _id field
     return jsonify(notifications)
 
-@app.route("/check_bid_end/<string:login_user>", methods=["GET"])
-def check_bid_end(login_user):
-    purchases = bid.find({"user": login_user})
-    bid_list = []
-    
-    for purchase in purchases:
-        # Initialize bid_data
-        bid_data = {
-            "_id": str(purchase["_id"]),
-            "_id_post": purchase["_id_post"],
-            "user": purchase["user"],
-            "artist": purchase["artist"],
-            "price": purchase["price"]
-        }
-        
-        # Find the corresponding post data for the given _id_post
-        post_data = post.find_one({"_id": ObjectId(purchase["_id_post"])})
-        
-        # Check if post_data exists and contains the 'typepost' field
-        if post_data and "endbid" in post_data:
-            bid_data["endbid"] = post_data["endbid"]
-        else:
-            bid_data["endbid"] = None
-        
-        # Append the bid data to the list
-        bid_list.append(bid_data)
-    
-    # Return the list as a JSON response
-    return jsonify(bid_list)
-
 def send_otp(email, otp):
     msg = EmailMessage()
     msg.set_content(f"Your OTP is: {otp}")
