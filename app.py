@@ -37,7 +37,6 @@ payout = db["payout"]
 bid = db["bid"]
 
 clientId = "1007059418552-8qgb0riokmg3t0t993ecjodnglvm0bj2.apps.googleusercontent.com"
-
 AZURE_STORAGE_CONNECTION_STRING = ""
 CONTAINER_NAME = "images"
 blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
@@ -815,6 +814,16 @@ def admin_delete_post(post_id):
 @app.route('/paidHistory/<string:id_user>', methods=['GET'])
 def get_paid(id_user):
     find = list(historysellbuy.find({"customer": id_user}))
+    if find:
+        for item in find :
+            item["_id"] = str(item["_id"])
+        return jsonify(find), 200
+    return jsonify({"message": "fail"}), 400
+
+
+@app.route('/salehistory/<string:id_user>', methods=['GET'])
+def get_salehistory(id_user):
+    find = list(historysellbuy.find({"own": id_user}))
     if find:
         for item in find :
             item["_id"] = str(item["_id"])
