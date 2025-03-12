@@ -12,6 +12,9 @@ import requests as req
 import base64
 import io
 from azure.storage.blob import BlobServiceClient
+from email.message import EmailMessage
+import random
+import smtplib
 uri = "mongodb+srv://se1212312121:se1212312121@cluster0.kjvosuu.mongodb.net/"
 
 # Create a new client and connect to the server
@@ -35,9 +38,9 @@ notificate = db["notificate"]
 bank = db["bank"]
 payout = db["payout"]
 bid = db["bid"]
+otppassword = db["otp"]
 
 clientId = "1007059418552-8qgb0riokmg3t0t993ecjodnglvm0bj2.apps.googleusercontent.com"
-
 AZURE_STORAGE_CONNECTION_STRING = ""
 CONTAINER_NAME = "images"
 blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
@@ -237,7 +240,7 @@ def updatelike(_id):
 
 @app.route('/cart/<string:_id_customer>', methods=['GET'])
 def getcart(_id_customer):
-    object_id = ObjectId(_id_customer)
+    object_id = _id_customer
     data = cart.find({"_id_customer": object_id})
     results = []
     for item in data:
@@ -253,7 +256,7 @@ def getcart(_id_customer):
 
 @app.route('/cart/<string:_id_customer>/<string:_id_post>', methods=['PUT'])
 def update_cart(_id_customer, _id_post):
-    object_id_customer = ObjectId(_id_customer)
+    object_id_customer = _id_customer
     object_id = ObjectId(_id_post)
     data = request.get_json()
     new_quantity = data.get("quantity", 1)
@@ -275,7 +278,7 @@ def update_cart(_id_customer, _id_post):
 
 @app.route('/cart/<string:_id_customer>/<string:_id_post>', methods=['DELETE'])
 def delete_cart_item(_id_customer, _id_post):
-    object_id_customer = ObjectId(_id_customer)
+    object_id_customer = _id_customer
     object_id = ObjectId(_id_post)
     result = cart.delete_one({"_id_post": object_id, "_id_customer": object_id_customer})
 
@@ -289,7 +292,7 @@ def add_to_cart():
     data = request.get_json()
     try:
         data['_id_post'] = ObjectId(data['_id_post'])
-        data['_id_customer'] = ObjectId(data['_id_customer'])
+        data['_id_customer'] = data['_id_customer']
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
@@ -820,6 +823,26 @@ def get_paid(id_user):
             item["_id"] = str(item["_id"])
         return jsonify(find), 200
     return jsonify({"message": "fail"}), 400
+
+
+@app.route('/salehistory/<string:id_user>', methods=['GET'])
+def get_salehistory(id_user):
+    find = list(historysellbuy.find({"own": id_user}))
+    if find:
+        for item in find :
+            item["_id"] = str(item["_id"])
+        return jsonify(find), 200
+    return jsonify({"message": "fail"}), 400
+
+@app.route('/toshipping/<string:id_user>', methods=['GET'])
+def get_ship(id_user):
+    find = list(filltracking.find({"customer": id_user}))
+    if find:
+        for item in find :
+            item["_id"] = str(item["_id"])
+            item["tracking_number"] = str(item["tracking_number"])
+        return jsonify(find), 200
+    return jsonify({"message": "fail"}), 400
         
 @app.route('/delete_report/<string:report_id>', methods=['DELETE'])
 def admin_delete_report(report_id):
@@ -914,8 +937,73 @@ def check_bid_end(login_user):
     # Return the list as a JSON response
     return jsonify(bid_list)
 
+def send_otp(email, otp):
+    msg = EmailMessage()
+    msg.set_content(f"Your OTP is: {otp}")
+    msg["Subject"] = "Your OTP Code"
+    msg["From"] = "mosphonz3@gmail.com"
+    msg["To"] = email
+    otppassword.update_one(
+        {"email": email},  
+        {"$set": {"otp": otp}},  
+        upsert=True  
+    )
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login("mosphonez3@gmail.com", "lmwjmtqijtpunema")
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        print("Error:", e)
+        return False
+
+# Route API สำหรับส่ง OTP
+@app.route("/send-otp", methods=["POST"])
+def send_otp_route():
+    data = request.get_json()
+    email = data.get("email")
+    
+    if not email:
+        return jsonify({"error": "Email is required"}), 400
+
+    otp = random.randint(100000, 999999)  # สุ่ม OTP 6 หลัก
+
+    if send_otp(email, otp):
+        return jsonify({"message": "OTP sent successfully", "otp": otp}), 200
+    else:
+        return jsonify({"error": "Failed to send OTP"}), 500
+
+@app.route("/get_email/<string:email>", methods=["GET"])
+def get_otp(email):
+    email = otppassword.find_one({"email": email})
+    email["_id"] = str(email["_id"])
+    return jsonify(email), 200
+
+@app.route("/change_password/<string:email>", methods=["PUT"])
+def change_password(email):
+    data = request.get_json()
+    password = bcrypt.generate_password_hash(data["password"]).decode('utf-8')
+    customer.update_one(
+        {"email": email}, 
+        {"$set": {"password": password}}  
+    )
+    otppassword.delete_one({"email": email})
+    return jsonify({"message" :"sugsess"}), 200
+
+#Signin admin
+VALID_USERNAME = "admin"
+VALID_PASSWORD = "password"
+
+@app.route("/signinadmin", methods=["POST"])
+def signin():
+    data = request.json
+    username = data.get("username")
+    password = data.get("password")
+    
+    if username == VALID_USERNAME and password == VALID_PASSWORD:
+        return jsonify({"message": "Signin successful", "status": "success"}), 200
+    else:
+        return jsonify({"message": "Invalid credentials", "status": "error"}), 401
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
-
-
