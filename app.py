@@ -35,7 +35,6 @@ notificate = db["notificate"]
 bank = db["bank"]
 payout = db["payout"]
 bid = db["bid"]
-collection = db["tracking"]
 
 clientId = "1007059418552-8qgb0riokmg3t0t993ecjodnglvm0bj2.apps.googleusercontent.com"
 
@@ -238,7 +237,7 @@ def updatelike(_id):
 
 @app.route('/cart/<string:_id_customer>', methods=['GET'])
 def getcart(_id_customer):
-    object_id = ObjectId(_id_customer)
+    object_id = _id_customer
     data = cart.find({"_id_customer": object_id})
     results = []
     for item in data:
@@ -254,7 +253,7 @@ def getcart(_id_customer):
 
 @app.route('/cart/<string:_id_customer>/<string:_id_post>', methods=['PUT'])
 def update_cart(_id_customer, _id_post):
-    object_id_customer = ObjectId(_id_customer)
+    object_id_customer = _id_customer
     object_id = ObjectId(_id_post)
     data = request.get_json()
     new_quantity = data.get("quantity", 1)
@@ -276,7 +275,7 @@ def update_cart(_id_customer, _id_post):
 
 @app.route('/cart/<string:_id_customer>/<string:_id_post>', methods=['DELETE'])
 def delete_cart_item(_id_customer, _id_post):
-    object_id_customer = ObjectId(_id_customer)
+    object_id_customer = _id_customer
     object_id = ObjectId(_id_post)
     result = cart.delete_one({"_id_post": object_id, "_id_customer": object_id_customer})
 
@@ -290,7 +289,7 @@ def add_to_cart():
     data = request.get_json()
     try:
         data['_id_post'] = ObjectId(data['_id_post'])
-        data['_id_customer'] = ObjectId(data['_id_customer'])
+        data['_id_customer'] = data['_id_customer']
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
@@ -327,25 +326,18 @@ def profile_update():
     
     update_fields = {}
     
-    # Update bio if provided
     if "user_bio" in data:
         update_fields["user_bio"] = data["user_bio"]
     
-    # Handle profile picture upload
     if "profile_pic" in data and data["profile_pic"]:
-        timestamp = str(int(datetime.now().timestamp()))  # Generate a timestamp
-        blob_urls, error = upload_images_to_azure(data["profile_pic"], f"{username}_{timestamp}")
-        
+        blob_urls, error = upload_images_to_azure(data["profile_pic"], username)
         if error:
-            return jsonify({"error": error}), 400  # Return error if upload fails
-        
+            return jsonify({"error": error}), 400
         update_fields["img"] = blob_urls  # Store uploaded image URLs
     
-    # If no fields to update, return an error
     if not update_fields:
         return jsonify({"error": "No fields to update"}), 400
     
-    # Update the database
     updated_user = customer.find_one_and_update(
         {"username": username},
         {"$set": update_fields},
@@ -455,19 +447,24 @@ def unfollow_user():
     )
 
 # Fill tracking number   
-@app.route("/edit/<string:_id>", methods=["PUT"])
-def edit_tracking(_id):
-    data = request.get_json()
+@app.route("/edit/<id>", methods=["PUT"])
+def edit_tracking(id):
+    data = request.json
+    if "tracking_number" not in data:
+        return jsonify({"error": "Missing tracking number"}), 400
     
-    filltracking.update_one({"_id": ObjectId(_id)}, {"$set": {"tracking_number": data["tracking_number"]}})
+    filltracking.update_one({"_id": ObjectId(id)}, {"$set": {"tracking_number": data["tracking_number"]}})
     return jsonify({"message": "Tracking number updated"})
 
-@app.route("/get_tracking/<string:own>", methods=["GET"])
-def get_tracking(own):
+@app.route("/get_tracking", methods=["POST"])
+def get_tracking():
+    data = request.json
+    if "username" not in data:
+        return jsonify({"error": "Missing username"}), 400
     
-    tracking_data = list(filltracking.find({"own": own}))
+    tracking_data = list(filltracking.find({"username": data["username"]}, {"_id": 1, "tracking_number": 1}))
     for item in tracking_data:
-        item["_id"] = str(item["_id"])
+        item["id"] = str(item.pop("_id"))
     
     return jsonify(tracking_data)
 
@@ -917,69 +914,6 @@ def check_bid_end(login_user):
     # Return the list as a JSON response
     return jsonify(bid_list)
 
-@app.route("/track/<string:tracking_number>", methods=["POST"])
-def track_post(tracking_number):
-    if not tracking_number:
-        return jsonify({"message": "Please provide a tracking number"}), 400
-
-    # Request Token
-    auth_url = "https://trackapi.thailandpost.co.th/post/api/v1/authenticate/token"
-    auth_headers = {
-        "Authorization": f"Token EUE@S+PrA4L9VnS^RtP0D_AcM_S-R1K.WIC;ZYDdA.G^H9CrUiNzQcYkY?PzGJRvPdZeKHAYHZC!TGY:SsESJsE1HGKdW~ImE7LT",
-        "Content-Type": "application/json"
-    }
-    auth_response = req.post(auth_url, headers=auth_headers)
-    
-    if auth_response.status_code != 200:
-        return jsonify({"message": "Failed to authenticate"}), 500
-
-    token = auth_response.json().get('token')
-
-    # Request Tracking Information
-    track_url = "https://trackapi.thailandpost.co.th/post/api/v1/track"
-    track_headers = {
-        "Authorization": f"Token {token}",
-        "Content-Type": "application/json"
-    }
-    track_data = {
-        "status": "all",
-        "language": "TH",
-        "barcode": [tracking_number]
-    }
-    track_response = req.post(track_url, headers=track_headers, json=track_data)
-
-    if track_response.status_code != 200:
-        return jsonify({"message": "Tracking request failed"}), 500
-
-    data = track_response.json()
-    items = data['response']['items'][tracking_number]
-    
-    if items:
-        # Structure JSON for JavaScript
-        return jsonify({
-            "response": {
-                "items": {
-                    tracking_number: [
-                        {
-                            "status": item.get("status"),
-                            "status_description": item.get("status_description"),
-                            "location": item.get("location"),
-                            "status_date": item.get("status_date")
-                        }
-                        for item in items
-                    ]
-                }
-            }
-        })
-    else:
-        return jsonify({"message": "No status data available"}), 404
-    
-@app.route("/filltracking", methods=["POST"])
-def post_filltracking():
-    # 
-    data = request.get_json()
-    filltracking.insert_one(data)
-    return jsonify({"massage":"success"}), 200
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
