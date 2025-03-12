@@ -1005,5 +1005,76 @@ def signin():
     else:
         return jsonify({"message": "Invalid credentials", "status": "error"}), 401
 
+
+@app.route("/check_bid_end/<string:login_user>", methods=["GET"])
+def check_bid_end(login_user):
+    purchases = bid.find({"user": login_user})
+    bid_list = []
+    
+    for purchase in purchases:
+        # Check if this bid exists in the candidate collection
+        candidate_data = candidate.find_one({
+            "post_id": purchase["_id_post"],  # Assuming `post_id` exists in the candidate collection
+            "user": login_user
+        })
+        
+        if not candidate_data:
+            continue  # Skip this bid if not found in the candidate collection
+
+        # Initialize bid_data
+        bid_data = {
+            "_id": str(purchase["_id"]),
+            "_id_post": purchase["_id_post"],
+            # "name":purchase["name"],
+            "user": purchase["user"],
+            "artist": purchase["artist"],
+            "price": purchase["price"]
+        }
+        
+        # Find the corresponding post data for the given _id_post
+        post_data = post.find_one({"_id": ObjectId(purchase["_id_post"])})
+        
+        if post_data and "endbid" in post_data:
+            bid_data["endbid"] = post_data["endbid"]
+        else:
+            bid_data["endbid"] = None
+        
+        # Append only if candidate_data exists
+        bid_list.append(bid_data)
+    
+    # Return the filtered list as a JSON response
+    return jsonify(bid_list)
+
+@app.route("/wonbid/adtocart", methods=["POST"])
+def WonBID_add_to_cart():
+    data = request.json
+    post_id = data.get("_id_post")
+    loginuser = data.get("_id_customer")
+    price = data.get("price")
+    if not post_id:
+        return jsonify({"error": "post_id is required"}), 400
+    
+    # Check if post_id exists in the cart
+    existing_item = cart.find_one({"_id_post": ObjectId(post_id) , "_id_customer":loginuser})
+    post_info = post.find_one({"_id":ObjectId(post_id)})
+    if existing_item:
+        return jsonify({"message": "post_id already in cart"}), 200
+    
+    return_data = {
+        "_id_post": ObjectId(post_id),
+        "_id_customer":loginuser,
+        "price":price,
+        "img":post_info.get("img"),
+        # "name":post_info.get("name"),
+        "quantity":1,
+        "typepost":post_info.get("typepost"),
+        "type":post_info.get("type"),
+        "own":post_info.get("own")
+    }   
+    
+    # Insert new post_id if not found
+    cart.insert_one(return_data)
+    return jsonify({"message": "post_id added to cart"}), 201
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
