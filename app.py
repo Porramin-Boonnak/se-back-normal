@@ -450,26 +450,26 @@ def unfollow_user():
     )
 
 # Fill tracking number   
-@app.route("/edit/<id>", methods=["PUT"])
-def edit_tracking(id):
-    data = request.json
-    if "tracking_number" not in data:
-        return jsonify({"error": "Missing tracking number"}), 400
-    
-    filltracking.update_one({"_id": ObjectId(id)}, {"$set": {"tracking_number": data["tracking_number"]}})
+@app.route("/edit/<string:_id>", methods=["PUT"])
+def edit_tracking(_id):
+    data = request.get_json()
+    filltracking.update_one({"_id": ObjectId(_id)}, {"$set": {"tracking_number": data["tracking_number"]}})
     return jsonify({"message": "Tracking number updated"})
 
-@app.route("/get_tracking", methods=["POST"])
-def get_tracking():
-    data = request.json
-    if "username" not in data:
-        return jsonify({"error": "Missing username"}), 400
-    
-    tracking_data = list(filltracking.find({"username": data["username"]}, {"_id": 1, "tracking_number": 1}))
+@app.route("/get_tracking/<string:own>", methods=["GET"])
+def get_tracking(own):
+    tracking_data = list(filltracking.find({"own": own}))
     for item in tracking_data:
-        item["id"] = str(item.pop("_id"))
-    
+        item["_id"] = str(item["_id"])
+ 
     return jsonify(tracking_data)
+
+@app.route("/filltracking", methods=["POST"])
+def post_filltracking():
+     
+     data = request.get_json()
+     filltracking.insert_one(data)
+     return jsonify({"massage":"success"}), 200
 
 @app.route("/submit", methods=["POST"])
 def submit_tracking():
