@@ -990,8 +990,20 @@ def change_password(email):
     otppassword.delete_one({"email": email})
     return jsonify({"message" :"sugsess"}), 200
 
+#Signin admin
+VALID_USERNAME = "admin"
+VALID_PASSWORD = "password"
+
+@app.route("/signinadmin", methods=["POST"])
+def signin():
+    data = request.json
+    username = data.get("username")
+    password = data.get("password")
+    
+    if username == VALID_USERNAME and password == VALID_PASSWORD:
+        return jsonify({"message": "Signin successful", "status": "success"}), 200
+    else:
+        return jsonify({"message": "Invalid credentials", "status": "error"}), 401
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
-
-
