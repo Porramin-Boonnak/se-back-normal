@@ -873,7 +873,7 @@ def place_bid():
         if new_price > old_price:  # เช็กว่าราคาใหม่ต้องสูงกว่าเก่า
             bid.update_one(
                 {"_id_post": post_id, "user": username},
-                {"$set": {"price": new_price}}
+                {"$set": {"price": new_price, "bidDate": datetime.utcnow()}}
             )
             return jsonify({"message": "Bid updated successfully!", "price": new_price}), 200
         else:
@@ -881,14 +881,14 @@ def place_bid():
     else:
         # เพิ่มบิดใหม่ถ้ายังไม่เคยบิด
         bid_data = {
-                    "_id_post": post_id,
-                    "user": data["user"],  # ต้องใช้ค่าจาก front-end
-                    "artist": data["artist"],
-                    "price": new_price,
-                    "img_user": data["img_user"],
-                    "img_post": data["img_post"]
-                }
-
+            "_id_post": post_id,
+            "user": data["user"],  # ต้องใช้ค่าจาก front-end
+            "artist": data["artist"],
+            "price": new_price,
+            "img_user": data["img_user"],
+            "img_post": data["img_post"],
+            "bidDate": datetime.utcnow()  # Save the current time in UTC
+        }
 
         bid.insert_one(bid_data)
         return jsonify({"message": "Bid placed successfully!", "price": new_price}), 201
@@ -1104,5 +1104,128 @@ def track_post(tracking_number):
     else:
         return jsonify({"message": "No status data available"}), 404
     
+
+@app.route("/candidate", methods=["POST"])
+def post_candidate():
+    data = request.get_json()
+
+    if not data or "post_id" not in data or "user" not in data or "price" not in data:
+        return jsonify({"error": "Invalid data"}), 400
+
+    # Check if there's an existing bid for this post
+    existing_bid = candidate.find_one({"post_id": data["post_id"]})
+
+    if existing_bid:
+            updated_bid = {
+                "post_id": data["post_id"],
+                "user": data["user"],
+                "price": int(data["price"])
+            }
+            candidate.update_one({"post_id": data["post_id"]}, {"$set": updated_bid})
+            return jsonify({"message": "Bid updated successfully"}), 200
+    else:
+        # If no bid exists for this post, place a new bid
+        new_bid = {
+            "post_id": data["post_id"],  # match with frontend's key names
+            "user": data["user"],
+            "price": int(data["price"])
+        }
+        candidate.insert_one(new_bid)
+        return jsonify({"message": "Bid placed successfully"}), 201
+
+    # GET endpoint for fetching bids of a specific post
+@app.route("/candidate/<post_id>", methods=["GET"])
+def get_candidate(post_id):
+        candidate_data = candidate.find_one({"post_id": post_id})
+        
+        if candidate_data:
+            # Convert the _id field to a string
+            candidate_data["_id"] = str(candidate_data["_id"])
+            return jsonify(candidate_data), 200
+        else:
+            return jsonify({"message": "Candidate not found"}), 404
+
+@app.route("/candidate/bidfirst", methods=["POST"])
+def post_candidate_bidfirst():
+    data = request.get_json()
+
+    # ตรวจสอบว่ามีการเสนอราคาจากผู้ใช้นั้นๆ หรือไม่
+    existing_bid = candidate.find_one({"post_id": data["post_id"], "user": data["user"]})
+
+    if not existing_bid:
+        # ถ้ามีการเสนอราคาจากผู้ใช้นั้นแล้ว ให้ทำการอัปเดตราคาของการเสนอราคา
+        candidate.insert_one(data)
+        return jsonify({"message": "Bid updated successfully"}), 200
+    else:
+        # ถ้าไม่มีการเสนอราคาจากผู้ใช้นี้สำหรับโพสต์นี้ จะไม่ทำการโพสต์หรืออัปเดตรายการใดๆ
+        return jsonify({"message": "No existing bid found for this user and post"}), 400
+
+@app.route("/candidate/bidmost", methods=["POST"])
+def post_candidate_bidmost():
+    data = request.get_json()
+
+    if not data or "post_id" not in data or "user" not in data or "price" not in data:
+        return jsonify({"error": "Invalid data"}), 400
+
+    # ตรวจสอบว่ามีการเสนอราคาจากผู้ใช้นั้นๆ หรือไม่
+    existing_bid = candidate.find_one({"post_id": data["post_id"], "user": data["user"]})
+
+    # ค้นหาส่วนที่มีราคาสูงที่สุด
+    highest_bid = candidate.find_one({"post_id": data["post_id"]}, sort=[("price", -1)])
+
+    # ถ้าราคาที่เสนอสูงสุด หรือเท่ากับราคาที่สูงสุดในโพสต์นี้
+    if highest_bid is None or int(data["price"]) >= highest_bid["price"]:
+        if existing_bid:
+            updated_bid = {
+                "post_id": data["post_id"],
+                "user": data["user"],
+                "price": int(data["price"])
+            }
+            candidate.update_one({"post_id": data["post_id"], "user": data["user"]}, {"$set": updated_bid})
+            return jsonify({"message": "Bid updated successfully"}), 200
+        else:
+            new_bid = {
+                "post_id": data["post_id"],
+                "user": data["user"],
+                "price": int(data["price"])
+            }
+            candidate.insert_one(new_bid)
+            return jsonify({"message": "Bid placed successfully"}), 201
+    else:
+        # ถ้าราคาที่เสนอไม่สูงสุด จะไม่ทำการโพสต์หรืออัปเดตรายการใดๆ
+        return jsonify({"message": "Your bid is not the highest. No bid placed."}), 400
+    
+@app.route("/chagedete", methods=["PUT"])
+def chagedete():
+    data = request.get_json()
+
+    post_id = data.get("_id_post")
+    new_price = data.get("price")
+    time = data.get("time")
+
+    if not post_id or new_price is None:
+        return jsonify({"message": "Missing required fields!"}), 400
+
+    # Convert post_id to ObjectId if necessary
+    try:
+        post_id = ObjectId(post_id)
+    except Exception:
+        return jsonify({"message": "Invalid post ID format!"}), 400
+
+    # Find existing bid
+    existing_bid = post.find_one({"_id": post_id})
+
+    if existing_bid:
+        updated_bid = {"price": int(new_price)}
+        if time:
+            updated_bid["endbid"] = time  # Only update if 'time' is provided
+
+        post.update_one({"_id": post_id}, {"$set": updated_bid})
+
+        return jsonify({"message": "Bid updated successfully!", "price": new_price}), 200
+    else:
+        return jsonify({"message": "No existing bid found for this post!"}), 400
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
