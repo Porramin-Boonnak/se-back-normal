@@ -12,6 +12,9 @@ import requests as req
 import base64
 import io
 from azure.storage.blob import BlobServiceClient
+from email.message import EmailMessage
+import random
+import smtplib
 uri = "mongodb+srv://se1212312121:se1212312121@cluster0.kjvosuu.mongodb.net/"
 
 # Create a new client and connect to the server
@@ -35,6 +38,7 @@ notificate = db["notificate"]
 bank = db["bank"]
 payout = db["payout"]
 bid = db["bid"]
+otppassword = db["otp"]
 
 clientId = "1007059418552-8qgb0riokmg3t0t993ecjodnglvm0bj2.apps.googleusercontent.com"
 AZURE_STORAGE_CONNECTION_STRING = ""
@@ -932,6 +936,59 @@ def check_bid_end(login_user):
     
     # Return the list as a JSON response
     return jsonify(bid_list)
+
+def send_otp(email, otp):
+    msg = EmailMessage()
+    msg.set_content(f"Your OTP is: {otp}")
+    msg["Subject"] = "Your OTP Code"
+    msg["From"] = "mosphonz3@gmail.com"
+    msg["To"] = email
+    otppassword.update_one(
+        {"email": email},  
+        {"$set": {"otp": otp}},  
+        upsert=True  
+    )
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login("mosphonez3@gmail.com", "lmwjmtqijtpunema")
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        print("Error:", e)
+        return False
+
+# Route API สำหรับส่ง OTP
+@app.route("/send-otp", methods=["POST"])
+def send_otp_route():
+    data = request.get_json()
+    email = data.get("email")
+    
+    if not email:
+        return jsonify({"error": "Email is required"}), 400
+
+    otp = random.randint(100000, 999999)  # สุ่ม OTP 6 หลัก
+
+    if send_otp(email, otp):
+        return jsonify({"message": "OTP sent successfully", "otp": otp}), 200
+    else:
+        return jsonify({"error": "Failed to send OTP"}), 500
+
+@app.route("/get_email/<string:email>", methods=["GET"])
+def get_otp(email):
+    email = otppassword.find_one({"email": email})
+    email["_id"] = str(email["_id"])
+    return jsonify(email), 200
+
+@app.route("/change_password/<string:email>", methods=["PUT"])
+def change_password(email):
+    data = request.get_json()
+    password = bcrypt.generate_password_hash(data["password"]).decode('utf-8')
+    customer.update_one(
+        {"email": email}, 
+        {"$set": {"password": password}}  
+    )
+    otppassword.delete_one({"email": email})
+    return jsonify({"message" :"sugsess"}), 200
 
 
 if __name__ == "__main__":
