@@ -386,7 +386,7 @@ def get_profile_follow(username):
         data["_id"] = str(data["_id"])  # Convert ObjectId to string
         return jsonify(data), 200
     else:
-        return jsonify({"error": "Profile not found"}), 404
+        return jsonify(data), 200
 
 @app.route("/follow", methods=["POST"])
 def follow_user():
