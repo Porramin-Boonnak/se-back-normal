@@ -140,23 +140,45 @@ def login():
 @app.route("/post", methods=["POST"])
 def postdata():
     data = request.get_json()
+    
+    # แยก base64 strings ของ img และ originalimg
     base64_strings = data.get("img", [])
-    if isinstance(data.get("originalimg"), list) and data["originalimg"]:
-        base64_strings_originalimg = data["originalimg"]
-        blob_urls, error = upload_images_to_azure(base64_strings_originalimg, f"{data.get('name', 'unknown')}_originalimg")
+    base64_strings_originalimg = data.get("originalimg", [])
+    base64_strings_blindimg = data.get("blindimg", [])
 
+    # อัปโหลด originalimg ไปยัง Azure Blob Storage
+    if isinstance(base64_strings_originalimg, list) and base64_strings_originalimg:
+        blob_urls, error = upload_images_to_azure(base64_strings_originalimg, f"{data.get('name', 'unknown')}_originalimg")
         if error:
             print(f"Error uploading images: {error}")  # หรือใช้ logging
             data["originalimg"] = []
         else:
             data["originalimg"] = blob_urls
+
+    # อัปโหลด img ไปยัง Azure Blob Storage
     blob_urls, error = upload_images_to_azure(base64_strings, data.get('name'))
-    
     if error:
         return jsonify({"error": error}), 400
-    
     data["img"] = blob_urls  # แทนที่ Base64 ด้วย URL
+    
+    # blindimg เก็บเป็น base64 ตรง ๆ
+    if isinstance(base64_strings_blindimg, list) and base64_strings_blindimg:
+        blob_urls, error = upload_images_to_azure(base64_strings_blindimg, f"{data.get('name', 'unknown')}_blindimg")
+        if error:
+            print(f"Error uploading images: {error}")  # หรือใช้ logging
+            data["blindimg"] = []
+        else:
+            data["blindimg"] = blob_urls
+
+    # อัปโหลด img ไปยัง Azure Blob Storage
+    blob_urls, error = upload_images_to_azure(base64_strings, data.get('name'))
+    if error:
+        return jsonify({"error": error}), 400
+    data["img"] = blob_urls  # แทนที่ Base64 ด้วย URL
+
+    # บันทึกข้อมูลลง MongoDB
     post.insert_one(data)
+    
     return {"message": "upload successful"}, 200
 
 
