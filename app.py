@@ -901,7 +901,7 @@ def place_bid():
     post_id = data["_id_post"]
     username = data["user"]
     new_price = int(data["price"])
-
+    
     # ค้นหาบิดก่อนหน้า
     existing_bid = bid.find_one({"_id_post": post_id, "user": username})
 
@@ -924,6 +924,7 @@ def place_bid():
             "price": new_price,
             "img_user": data["img_user"],
             "img_post": data["img_post"],
+            "name": data["name"],
             "bidDate": datetime.utcnow()  # Save the current time in UTC
         }
 
