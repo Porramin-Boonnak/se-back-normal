@@ -401,14 +401,22 @@ def get_profile_post(username):
     return jsonify(data), 200  # Will return [] if no data exists
 
 
-@app.route("/profile/follow/<username>" , methods=["GET"])
+@app.route("/profile/follow/<username>", methods=["GET"])
 def get_profile_follow(username):
     data = follow.find_one({"username": username})
-    if data:
-        data["_id"] = str(data["_id"])  # Convert ObjectId to string
-        return jsonify(data), 200
-    else:
-        return jsonify(data), 200
+    
+    if data is None:
+        new_data = {
+            "username": username,
+            "followers": [],
+            "followings": []
+        }
+        inserted = follow.insert_one(new_data)
+        new_data["_id"] = str(inserted.inserted_id)  # Convert ObjectId to string
+        return jsonify(new_data), 200
+    
+    data["_id"] = str(data["_id"])  # Convert ObjectId to string
+    return jsonify(data), 200
 
 @app.route("/follow", methods=["POST"])
 def follow_user():
@@ -426,7 +434,7 @@ def follow_user():
             follow.insert_one({
                 "username": user,
                 "followers": [],
-                "followings": []
+                "followings": []    
             })
 
     # Add 'this_user' to 'user_login's following list
