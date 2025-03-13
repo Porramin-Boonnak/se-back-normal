@@ -404,13 +404,13 @@ def follow_user():
             follow.insert_one({
                 "username": user,
                 "followers": [],
-                "following": []
+                "followings": []
             })
 
     # Add 'this_user' to 'user_login's following list
     follow.update_one(
         {"username": user_login},
-        {"$addToSet": {"following": {"username": this_user, "img": img}}}
+        {"$addToSet": {"followings": {"username": this_user, "img": img}}}
     )
 
     # Add 'user_login' to 'this_user's followers list
@@ -847,7 +847,7 @@ def get_ship(id_user):
 @app.route("/following/<string:id_user>", methods=['GET'])
 def get_following(id_user):
     user = follow.find_one({"username": id_user})
-    return jsonify(list(user["following"]))
+    return jsonify(list(user["followings"]))
     
     return jsonify({"error": "User not found or no followings"}), 404
 
