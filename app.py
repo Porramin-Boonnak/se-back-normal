@@ -1015,7 +1015,8 @@ def check_bid_end(login_user):
             bid_data["endbid"] = post_data["endbid"]
         else:
             bid_data["endbid"] = None
-        
+        bid_data["name"] = post_data["name"]
+        bid_data["selltype"] = post_data["selltype"]
         # Append only if candidate_data exists
         bid_list.append(bid_data)
     
@@ -1042,11 +1043,12 @@ def WonBID_add_to_cart():
         "_id_customer":loginuser,
         "price":price,
         "img":post_info.get("img"),
-        # "name":post_info.get("name"),
+        "name":post_info.get("name"),
         "quantity":1,
         "typepost":post_info.get("typepost"),
         "type":post_info.get("type"),
-        "own":post_info.get("own")
+        "own":post_info.get("own"),
+        "selltype":post_info.get("selltype")
     }   
     
     # Insert new post_id if not found
