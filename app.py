@@ -573,11 +573,19 @@ def update_post(_id):
         return jsonify({"error": "Missing required fields (name, description)"}), 400
 
     # Update the post
-    result = post.find_one_and_update(
-        {"_id": object_id},
-        {"$set": data},
-        return_document=True  # Return the document after the update
-    )
+    result = ""
+    if data.get("payment") :
+        result = post.find_one_and_update(
+            {"_id": object_id},
+            {"$set": data},
+            return_document=True  # Return the document after the update
+        )
+    else:
+        result = post.find_one_and_update(
+            {"_id": object_id},
+            {"$set": data,"$unset": {"payment": ""}},
+            return_document=True  # Return the document after the update
+        )
 
     if result:
         result['_id'] = str(result['_id'])  # Convert ObjectId to string for JSON response
@@ -1174,7 +1182,7 @@ def post_candidate():
         return jsonify({"message": "Bid placed successfully"}), 201
 
     # GET endpoint for fetching bids of a specific post
-@app.route("/candidate/<post_id>", methods=["GET"])
+@app.route("/candidate/<string:post_id>", methods=["GET"])
 def get_candidate(post_id):
         candidate_data = candidate.find_one({"post_id": post_id})
         
@@ -1183,7 +1191,7 @@ def get_candidate(post_id):
             candidate_data["_id"] = str(candidate_data["_id"])
             return jsonify(candidate_data), 200
         else:
-            return jsonify({"message": "Candidate not found"}), 404
+            return jsonify({"message": "Candidate not found"}), 200
 
 @app.route("/candidate/bidfirst", methods=["POST"])
 def post_candidate_bidfirst():
@@ -1266,6 +1274,11 @@ def chagedete():
     else:
         return jsonify({"message": "No existing bid found for this post!"}), 400
 
+@app.route("/deletecandidate/<string:post_id>", methods=["DELETE"])
+def deletecandidate(post_id):
+    candidate.delete_one({"post_id":post_id})
+    bid.delete_many({"_id_post":post_id})
+    return jsonify({"message": "successfully!"})
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
 
