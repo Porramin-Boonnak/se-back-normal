@@ -1279,6 +1279,36 @@ def deletecandidate(post_id):
     candidate.delete_one({"post_id":post_id})
     bid.delete_many({"_id_post":post_id})
     return jsonify({"message": "successfully!"})
+@app.route('/topayout', methods=['GET'])
+def get_payout():
+    find = list(payout.find({}))  # ดึงข้อมูลทั้งหมดจาก collection 'payout'
+    
+    if find:
+        # แปลง ObjectId เป็น string เพราะค่า ObjectId ไม่สามารถแปลงเป็น JSON ได้โดยตรง
+        for item in find:
+            item["_id"] = str(item["_id"])
+
+        return jsonify(find), 200
+        
+
+    return jsonify({"message": "fail"}), 400
+
+@app.route("/payout-success", methods=["POST"])
+def update_payout():
+    data = request.json
+    username = data.get("username")
+
+    if not username:
+        return jsonify({"error": "Missing username"}), 400
+
+    # อัปเดตสถานะเป็น "success"
+    result = payout.update_many({"username": username}, {"$set": {"status": "success"}})
+
+    if result.modified_count > 0:
+        return jsonify({"message": "Payout updated successfully"})
+    else:
+        return jsonify({"error": "No matching records found"}), 404
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
 
