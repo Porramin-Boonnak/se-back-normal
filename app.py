@@ -106,7 +106,7 @@ def signup():
         
         payload = {
             "username": data['username'],
-            "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=6)  
+            "exp": datetime.now(timezone.utc) + timedelta(hours=6)  
         }
         token = jwt.encode(payload, keyforlogin, algorithm="HS256")
         return jsonify(token), 200
