@@ -355,7 +355,8 @@ def profile_update():
         update_fields["user_bio"] = data["user_bio"]
     
     if "profile_pic" in data and data["profile_pic"]:
-        blob_urls, error = upload_images_to_azure(data["profile_pic"], username)
+        date = datetime.now().strftime("%Y-%m-%d")  # Example format: 2025-03-14
+        blob_urls, error = upload_images_to_azure(data["profile_pic"], username + "_" + date)
         if error:
             return jsonify({"error": error}), 400
         update_fields["img"] = blob_urls  # Store uploaded image URLs
