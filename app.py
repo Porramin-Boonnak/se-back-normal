@@ -807,6 +807,16 @@ def post_bank():
     bank.insert_one(data)
     return {"message":"successful"}, 200
 
+@app.route('/bank/<string:id_user>', methods=['PUT'])
+def update_bank(id_user):
+    data = request.get_json()
+    result = bank.update_one({"username": id_user}, {"$set": data})
+    
+    if result.modified_count > 0:
+        return jsonify({"message": "update successful"}), 200
+    return jsonify({"message": "update failed or no changes made"}), 400
+
+
 @app.route('/payout', methods=['POST'])
 def post_payout():
     data = request.get_json()
