@@ -8,7 +8,7 @@ VivArt is a web application backend that combines **auction features**, **social
 
 - ✅ User system: Registration, Login with Google OAuth, Secure password hashing with Bcrypt
 - 📸 Posting system for products/images
-- 🔨 Real-time auction logic with bid tracking
+- ⚠️ Auction system with bid tracking (Note: bidding is currently implemented as standard API calls, not real-time)
 - 💬 Commenting, following, and notification system
 - 🛒 Shopping cart, address handling, and delivery tracking
 - 🏦 Bank data management, payout request system
@@ -30,7 +30,15 @@ VivArt is a web application backend that combines **auction features**, **social
 
 ---
 
-# 🧠 VivArt API – Frontend for Auction & Social Media Platform
+## ⚙️ Notes on Real-time Auction Logic
 
+Currently, the auction bidding functionality works via RESTful API calls without real-time push updates. To implement real-time bidding and live updates, integration with technologies like **WebSocket** (e.g., Flask-SocketIO) is recommended in future development.
+
+---
+
+# 🧠 VivArt Frontend – Auction & Social Media Platform
+
+The frontend repository is available here:  
 https://github.com/Porramin-Boonnak/vivart
 
+---
